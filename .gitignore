@@ -1,0 +1,10 @@
+#build output shouldn't be tracked by git
+build
+
+#leftovers from converting from the valvers tutorial (https://github.com/BrianSidebotham/arm-tutorial-rpi)
+#eventually i'll convert these to work with the new project structure :)
+build-old
+compiler
+card
+firmware
+.github/workflows
