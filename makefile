@@ -4,6 +4,7 @@ OBJDIR   = $(BUILDDIR)/obj
 BINDIR   = $(BUILDDIR)/bin
 
 OBJFILES = $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.obj,$(wildcard $(SRCDIR)/*.c)) $(patsubst $(SRCDIR)/%.S,$(OBJDIR)/%.obj,$(wildcard $(SRCDIR)/*.S))
+LIBFILES = $(wildcard $(SRCDIR)/*.a)
 
 # Cross-platform directory stuff
 ifeq ($(OS),Windows_NT)
@@ -40,11 +41,11 @@ $(OBJDIR)/%.obj: $(SRCDIR)/%.S
 	$(ENSUREDIR)
 	@$(TOOLCHAIN)-gcc $(C_INCLUDES) $(C_DEFINES) $(ASM_FLAGS) -o $@ -c $^
 
-# Build ELF executable
+# Link ELF executable
 $(BINDIR)/kernel.elf: $(OBJFILES)
 	@echo [Linking]: $^ -^> $@
 	$(ENSUREDIR)
-	@$(TOOLCHAIN)-gcc $(C_INCLUDES) $(C_DEFINES) $(C_FLAGS) $^ -o $(BINDIR)/kernel.elf
+	@$(TOOLCHAIN)-gcc $(C_INCLUDES) $(C_DEFINES) $(C_FLAGS) $^ $(LIBFILES) -o $(BINDIR)/kernel.elf
 
 # Extract the kernel image
 $(BINDIR)/kernel.img: $(BINDIR)/kernel.elf
