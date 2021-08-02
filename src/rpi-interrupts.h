@@ -15,7 +15,10 @@
 
 #include "rpi-base.h"
 
+#include "uspios.h"
+
 extern volatile int uptime;
 extern void RPI_EnableARMTimerInterrupt(void);
+void ConnectIRQHandler(unsigned nIRQ, TInterruptHandler* pHandler, void* pParam);
 
 #endif

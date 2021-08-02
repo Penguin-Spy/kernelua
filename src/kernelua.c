@@ -15,26 +15,27 @@
 
 #include "uspi.h"
 
+#define SCREEN_WIDTH 1920
+#define SCREEN_HEIGHT 1080
+#define SCREEN_DEPTH 32 /* Stick to 32-bit depth for ease-of tutorial code */
 
-#define SCREEN_WIDTH    1920
-#define SCREEN_HEIGHT   1080
-#define SCREEN_DEPTH    32  /* Stick to 32-bit depth for ease-of tutorial code */
+#define TIMER_HERTZ 4 /*  */
 
 extern void _enable_interrupts(void);
 
 /** Main function - we'll never return from here */
-void kernel_main( unsigned int r0, unsigned int r1, unsigned int atags ) {
+void kernel_main(unsigned int r0, unsigned int r1, unsigned int atags) {
     volatile uint32_t* fb = NULL;
     int width = 0, height = 0;
     int pitch_bytes = 0;
     int pixel_offset;
     unsigned int frame_count = 0;
-    rpi_mailbox_property_t *mp;
+    rpi_mailbox_property_t* mp;
     uint32_t pixel_value = 0;
 
     /* Write 1 to the LED init nibble in the Function Select GPIO peripheral register to enable
        LED pin as an output */
-    RPI_SetGpioPinFunction( LED_GPIO, FS_OUTPUT );
+    RPI_SetGpioPinFunction(LED_GPIO, FS_OUTPUT);
     LED_ON();
 
     /* Using some print statements with no newline causes the output to be buffered and therefore
@@ -54,13 +55,13 @@ void kernel_main( unsigned int r0, unsigned int r1, unsigned int atags ) {
        second interrupt will therefore be one second. It's approximate, the division doesn't
        really work out to be precisely 1s because of the divisor options and the core
        frequency. */
-    uint16_t prescales[] = {1, 16, 256, 1};
-    uint32_t timer_load = (1.0 / 2) / (1.0/(core_frequency / (RPI_GetArmTimer()->PreDivider + 1) * (prescales[(RPI_GetArmTimer()->Control & 0xC) >> 2])));
+    uint16_t prescales[] = { 1, 16, 256, 1 };
+    uint32_t timer_load = (1.0 / TIMER_HERTZ) / (1.0 / (core_frequency / (RPI_GetArmTimer()->PreDivider + 1) * (prescales[(RPI_GetArmTimer()->Control & 0xC) >> 2])));
     RPI_GetArmTimer()->Load = timer_load;
 
     /* Setup the ARM Timer */
-    RPI_GetArmTimer()->Control = ( RPI_ARMTIMER_CTRL_23BIT |
-            RPI_ARMTIMER_CTRL_ENABLE | RPI_ARMTIMER_CTRL_INT_ENABLE );
+    RPI_GetArmTimer()->Control = (RPI_ARMTIMER_CTRL_23BIT |
+        RPI_ARMTIMER_CTRL_ENABLE | RPI_ARMTIMER_CTRL_INT_ENABLE);
 
     /* Enable the ARM Interrupt controller in the BCM interrupt controller */
     RPI_EnableARMTimerInterrupt();
@@ -69,17 +70,17 @@ void kernel_main( unsigned int r0, unsigned int r1, unsigned int atags ) {
     _enable_interrupts();
 
     /* Initialise the UART */
-    RPI_AuxMiniUartInit( 115200, 8 );
+    RPI_AuxMiniUartInit(115200, 8);
 
     /* Print to the UART using the standard libc functions */
-    printf( "\r\n" );
-    printf( "------------------------------------------\r\n" );
-    printf( "Valvers.com ARM Bare Metal Tutorials\r\n" );
-    printf( "Initialise UART console with standard libc\r\n" );
-/*
-    printf("PREDIV: 0x%8.8x\r\n", RPI_GetArmTimer()->PreDivider );
-    printf("Timer Reload: 0x%8.8x\r\n", timer_load);
- */
+    printf("\r\n");
+    printf("------------------------------------------\r\n");
+    printf("Valvers.com ARM Bare Metal Tutorials\r\n");
+    printf("Initialise UART console with standard libc\r\n");
+    /*
+        printf("PREDIV: 0x%8.8x\r\n", RPI_GetArmTimer()->PreDivider );
+        printf("Timer Reload: 0x%8.8x\r\n", timer_load);
+     */
     printf("CORE Frequency: %dMHz\r\n", (core_frequency / 1000000));
 
     /* Clock Frequency */
@@ -87,25 +88,25 @@ void kernel_main( unsigned int r0, unsigned int r1, unsigned int atags ) {
     RPI_PropertyAddTag(TAG_GET_MAX_CLOCK_RATE, TAG_CLOCK_ARM);
     RPI_PropertyProcess();
 
-    mp = RPI_PropertyGet( TAG_GET_MAX_CLOCK_RATE );
+    mp = RPI_PropertyGet(TAG_GET_MAX_CLOCK_RATE);
 
     RPI_PropertyInit();
-    RPI_PropertyAddTag( TAG_SET_CLOCK_RATE, TAG_CLOCK_ARM, mp->data.buffer_32[1] );
+    RPI_PropertyAddTag(TAG_SET_CLOCK_RATE, TAG_CLOCK_ARM, mp->data.buffer_32[1]);
     RPI_PropertyProcess();
 
     RPI_PropertyInit();
     RPI_PropertyAddTag(TAG_GET_CLOCK_RATE, TAG_CLOCK_ARM);
     RPI_PropertyProcess();
 
-    if( mp = RPI_PropertyGet(TAG_GET_CLOCK_RATE) ) {
+    if (mp = RPI_PropertyGet(TAG_GET_CLOCK_RATE)) {
         printf("ARM  Frequency: %dMHz\r\n", (mp->data.buffer_32[1] / 1000000));
     }
 
     RPI_PropertyInit();
-    RPI_PropertyAddTag( TAG_GET_BOARD_REVISION );
-    RPI_PropertyAddTag( TAG_GET_FIRMWARE_VERSION );
-    RPI_PropertyAddTag( TAG_GET_BOARD_MAC_ADDRESS );
-    RPI_PropertyAddTag( TAG_GET_BOARD_SERIAL );
+    RPI_PropertyAddTag(TAG_GET_BOARD_REVISION);
+    RPI_PropertyAddTag(TAG_GET_FIRMWARE_VERSION);
+    RPI_PropertyAddTag(TAG_GET_BOARD_MAC_ADDRESS);
+    RPI_PropertyAddTag(TAG_GET_BOARD_SERIAL);
     RPI_PropertyProcess();
 
     const char* processors[] = { "BCM2835", "BCM2836", "BCM2837", "BCM2711" };
@@ -121,7 +122,8 @@ void kernel_main( unsigned int r0, unsigned int r1, unsigned int atags ) {
         "Sony UK", "Egoman", "Embest", "Sony Japan", "Embest", "Stadium" };
 
     const char* rpi_models[] = {
-        "-", "-",
+        "-",
+        "-",
         "RPI1B 1.0 256MB Egoman",
         "RPI1B 1.0 256MB Egoman",
         "RPI1B 2.0 256MB Sony UK",
@@ -141,10 +143,10 @@ void kernel_main( unsigned int r0, unsigned int r1, unsigned int atags ) {
         "RPI1A+ 1.1 256MB/512MB Embest",
     };
 
-    if( mp = RPI_PropertyGet( TAG_GET_BOARD_REVISION ) ) {
+    if (mp = RPI_PropertyGet(TAG_GET_BOARD_REVISION)) {
         uint32_t revision = mp->data.value_32;
         printf("Board Revision: 0x%8.8x", mp->data.value_32);
-        if ( revision & ( 1 << 23 ) ) {
+        if (revision & (1 << 23)) {
             /* New style revision code */
             printf(" rpi-%s", rpi_types[(revision & (0xFF << 4)) >> 4]);
             printf(" %s", processors[(revision & (0xF << 12)) >> 12]);
@@ -158,73 +160,68 @@ void kernel_main( unsigned int r0, unsigned int r1, unsigned int atags ) {
         printf("\r\n");
     }
 
-    if( mp = RPI_PropertyGet( TAG_GET_FIRMWARE_VERSION ) ) {
-        printf( "Firmware Version: %d\r\n", mp->data.value_32 );
+    if (mp = RPI_PropertyGet(TAG_GET_FIRMWARE_VERSION)) {
+        printf("Firmware Version: %d\r\n", mp->data.value_32);
     }
 
-    if( mp = RPI_PropertyGet( TAG_GET_BOARD_MAC_ADDRESS ) ) {
-        printf( "MAC Address: %2.2X:%2.2X:%2.2X:%2.2X:%2.2X:%2.2X\r\n",
-                mp->data.buffer_8[0], mp->data.buffer_8[1], mp->data.buffer_8[2],
-                mp->data.buffer_8[3], mp->data.buffer_8[4], mp->data.buffer_8[5] );
+    if (mp = RPI_PropertyGet(TAG_GET_BOARD_MAC_ADDRESS)) {
+        printf("MAC Address: %2.2X:%2.2X:%2.2X:%2.2X:%2.2X:%2.2X\r\n",
+            mp->data.buffer_8[0], mp->data.buffer_8[1], mp->data.buffer_8[2],
+            mp->data.buffer_8[3], mp->data.buffer_8[4], mp->data.buffer_8[5]);
     }
 
-    if( mp = RPI_PropertyGet( TAG_GET_BOARD_SERIAL ) ) {
-        printf( "Serial Number: %8.8X%8.8X\r\n", mp->data.buffer_32[0], mp->data.buffer_32[1] );
+    if (mp = RPI_PropertyGet(TAG_GET_BOARD_SERIAL)) {
+        printf("Serial Number: %8.8X%8.8X\r\n", mp->data.buffer_32[0], mp->data.buffer_32[1]);
     }
 
     /* Initialise a framebuffer using the property mailbox interface */
     RPI_PropertyInit();
-    RPI_PropertyAddTag( TAG_ALLOCATE_BUFFER );
-    RPI_PropertyAddTag( TAG_SET_PHYSICAL_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT );
-    RPI_PropertyAddTag( TAG_SET_VIRTUAL_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT * 2 );
-    RPI_PropertyAddTag( TAG_SET_DEPTH, SCREEN_DEPTH );
-    RPI_PropertyAddTag( TAG_GET_PITCH );
-    RPI_PropertyAddTag( TAG_GET_PHYSICAL_SIZE );
-    RPI_PropertyAddTag( TAG_GET_DEPTH );
+    RPI_PropertyAddTag(TAG_ALLOCATE_BUFFER);
+    RPI_PropertyAddTag(TAG_SET_PHYSICAL_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT);
+    RPI_PropertyAddTag(TAG_SET_VIRTUAL_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT * 2);
+    RPI_PropertyAddTag(TAG_SET_DEPTH, SCREEN_DEPTH);
+    RPI_PropertyAddTag(TAG_GET_PITCH);
+    RPI_PropertyAddTag(TAG_GET_PHYSICAL_SIZE);
+    RPI_PropertyAddTag(TAG_GET_DEPTH);
     RPI_PropertyProcess();
 
-    if( ( mp = RPI_PropertyGet( TAG_GET_PHYSICAL_SIZE ) ) )
-    {
+    if ((mp = RPI_PropertyGet(TAG_GET_PHYSICAL_SIZE))) {
         width = mp->data.buffer_32[0];
         height = mp->data.buffer_32[1];
 
-        printf( "Initialised Framebuffer: %dx%d ", width, height );
+        printf("Initialised Framebuffer: %dx%d ", width, height);
     }
 
-    if( ( mp = RPI_PropertyGet( TAG_GET_DEPTH ) ) )
-    {
+    if ((mp = RPI_PropertyGet(TAG_GET_DEPTH))) {
         int bpp = mp->data.buffer_32[0];
-        printf( "%dbpp\r\n", bpp );
-        if( bpp != 32 ) {
-          printf("THIS TUTORIAL ONLY SUPPORTS DEPTH OF 32bpp!\r\n");
+        printf("%dbpp\r\n", bpp);
+        if (bpp != 32) {
+            printf("THIS TUTORIAL ONLY SUPPORTS DEPTH OF 32bpp!\r\n");
         }
     }
 
-    if( ( mp = RPI_PropertyGet( TAG_GET_PITCH ) ) )
-    {
+    if ((mp = RPI_PropertyGet(TAG_GET_PITCH))) {
         pitch_bytes = mp->data.buffer_32[0];
-        printf( "Pitch: %d bytes\r\n", pitch_bytes );
-
+        printf("Pitch: %d bytes\r\n", pitch_bytes);
     }
 
-    if( ( mp = RPI_PropertyGet( TAG_ALLOCATE_BUFFER ) ) )
-    {
+    if ((mp = RPI_PropertyGet(TAG_ALLOCATE_BUFFER))) {
         fb = (volatile uint32_t*)(mp->data.buffer_32[0] & ~0xC0000000);
-        printf( "Framebuffer address: %8.8X\r\n", (unsigned int)fb );
+        printf("Framebuffer address: %8.8X\r\n", (unsigned int)fb);
     }
 
     /* Produce a colour spread across the screen */
-    for( int y = 0; y < height; y++ ) {
+    /*for (int y = 0; y < height; y++) {
         int line_offset = y * width;
 
-        for( int x = 0; x < width; x++ ) {
+        for (int x = 0; x < width; x++) {
             fb[line_offset + x] = pixel_value++;
         }
-    }
+    }*/
 
     RPI_TermInit(fb, width, height);
 
-    RPI_TermSetBackgroundColor(COLORS_PINK);
+    /*RPI_TermSetBackgroundColor(COLORS_PINK);
     RPI_TermSetTextColor(COLORS_YELLOW);
     RPI_TermPutC('B');
     RPI_TermSetTextColor(COLORS_CYAN);
@@ -250,7 +247,7 @@ void kernel_main( unsigned int r0, unsigned int r1, unsigned int atags ) {
     RPI_TermSetTextColor(COLORS_BLUE);
     RPI_TermSetCursorPos(6, 8);
     printf("this was quite hard to get working please clap\n");
-    printf("Initialised Framebuffer: %dx%d ", width, height );
+    printf("Initialised Framebuffer: %dx%d ", width, height);
 
     RPI_TermSetCursorPos(0, 13);
     RPI_TermSetTextColor(COLORS_WHITE);
@@ -280,24 +277,25 @@ pqrstuvwxyz{|}~\x7F\n\
     RPI_TermSetTextColor(COLORS_LIME);
     //printf("libuspi is included i think :thinking emoji but I can't display it because this is ASCII (actually KLSCII \x01)");
     printf("YOOO LETS GO I COMPILED ON WINDOWS 10 YEET");
-
+*/
     int result;
 
-    RPI_TermSetCursorPos(0, 32);
+    RPI_TermSetCursorPos(0, 100);
     RPI_TermSetTextColor(COLORS_WHITE);
-    //result = USPiInitialize();
+    result = USPiInitialize();
 
     RPI_TermSetTextColor(COLORS_PURPLE);
+    //printf("What happens if I try to use unicode? 🤔 💾 📧\n\n");
     printf("\nUSPiInitialize() result: %.d\n", result);
 
     //if(result == OK) {
-        RPI_TermSetTextColor(COLORS_ORANGE);
+    RPI_TermSetTextColor(COLORS_ORANGE);
     //}
 
-    while( 1 ) {
-        RPI_WaitMicroSeconds(5000);
+    /*while (1) {
+        RPI_WaitMicroSeconds(50000);
         LED_OFF();
-        RPI_WaitMicroSeconds(5000);
-        LED_ON();
-    }
+        //RPI_WaitMicroSeconds(5000);
+        //LED_ON();
+    }*/
 }

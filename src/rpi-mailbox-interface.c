@@ -35,7 +35,7 @@
 #include "rpi-mailbox.h"
 #include "rpi-mailbox-interface.h"
 
-#define PRINT_PROP_DEBUG 1
+#define PRINT_PROP_DEBUG 0
 
 /* Make sure the property tag buffer is aligned to a 16-byte boundary because
    we only have 28-bits available in the property interface protocol to pass
@@ -44,8 +44,7 @@ static int pt[8192] __attribute__((aligned(16)));
 static int pt_index = 0;
 
 
-void RPI_PropertyInit( void )
-{
+void RPI_PropertyInit(void) {
     /* Fill in the size on-the-fly */
     pt[PT_OSIZE] = 12;
 
@@ -63,15 +62,13 @@ void RPI_PropertyInit( void )
     @brief Add a property tag to the current tag list. Data can be included. All data is uint32_t
     @param tag
 */
-void RPI_PropertyAddTag( rpi_mailbox_tag_t tag, ... )
-{
+void RPI_PropertyAddTag(rpi_mailbox_tag_t tag, ...) {
     va_list vl;
-    va_start( vl, tag );
+    va_start(vl, tag);
 
     pt[pt_index++] = tag;
 
-    switch( tag )
-    {
+    switch (tag) {
         case TAG_GET_FIRMWARE_VERSION:
         case TAG_GET_BOARD_MODEL:
         case TAG_GET_BOARD_REVISION:
@@ -100,16 +97,16 @@ void RPI_PropertyAddTag( rpi_mailbox_tag_t tag, ... )
         case TAG_GET_CLOCK_RATE:
             pt[pt_index++] = 8;
             pt[pt_index++] = 0; /* Request */
-            pt[pt_index++] = va_arg( vl, int );
+            pt[pt_index++] = va_arg(vl, int);
             pt[pt_index++] = 0;
             break;
 
         case TAG_SET_CLOCK_RATE:
             pt[pt_index++] = 12;
             pt[pt_index++] = 0; /* Request */
-            pt[pt_index++] = va_arg( vl, int ); /* Clock ID */
-            pt[pt_index++] = va_arg( vl, int ); /* Rate (in Hz) */
-            pt[pt_index++] = va_arg( vl, int ); /* Skip turbo setting if == 1 */
+            pt[pt_index++] = va_arg(vl, int); /* Clock ID */
+            pt[pt_index++] = va_arg(vl, int); /* Rate (in Hz) */
+            pt[pt_index++] = va_arg(vl, int); /* Skip turbo setting if == 1 */
             break;
 
         case TAG_GET_PHYSICAL_SIZE:
@@ -123,17 +120,14 @@ void RPI_PropertyAddTag( rpi_mailbox_tag_t tag, ... )
             pt[pt_index++] = 8;
             pt[pt_index++] = 0; /* Request */
 
-            if( ( tag == TAG_SET_PHYSICAL_SIZE ) ||
-                ( tag == TAG_SET_VIRTUAL_SIZE ) ||
-                ( tag == TAG_SET_VIRTUAL_OFFSET ) ||
-                ( tag == TAG_TEST_PHYSICAL_SIZE ) ||
-                ( tag == TAG_TEST_VIRTUAL_SIZE ) )
-            {
-                pt[pt_index++] = va_arg( vl, int ); /* Width */
-                pt[pt_index++] = va_arg( vl, int ); /* Height */
-            }
-            else
-            {
+            if ((tag == TAG_SET_PHYSICAL_SIZE) ||
+                (tag == TAG_SET_VIRTUAL_SIZE) ||
+                (tag == TAG_SET_VIRTUAL_OFFSET) ||
+                (tag == TAG_TEST_PHYSICAL_SIZE) ||
+                (tag == TAG_TEST_VIRTUAL_SIZE)) {
+                pt[pt_index++] = va_arg(vl, int); /* Width */
+                pt[pt_index++] = va_arg(vl, int); /* Height */
+            } else {
                 pt_index += 2;
             }
             break;
@@ -148,15 +142,12 @@ void RPI_PropertyAddTag( rpi_mailbox_tag_t tag, ... )
             pt[pt_index++] = 4;
             pt[pt_index++] = 0; /* Request */
 
-            if( ( tag == TAG_SET_DEPTH ) ||
-                ( tag == TAG_SET_PIXEL_ORDER ) ||
-                ( tag == TAG_SET_ALPHA_MODE ) )
-            {
+            if ((tag == TAG_SET_DEPTH) ||
+                (tag == TAG_SET_PIXEL_ORDER) ||
+                (tag == TAG_SET_ALPHA_MODE)) {
                 /* Colour Depth, bits-per-pixel \ Pixel Order State */
-                pt[pt_index++] = va_arg( vl, int );
-            }
-            else
-            {
+                pt[pt_index++] = va_arg(vl, int);
+            } else {
                 pt_index += 1;
             }
             break;
@@ -166,35 +157,32 @@ void RPI_PropertyAddTag( rpi_mailbox_tag_t tag, ... )
             pt[pt_index++] = 16;
             pt[pt_index++] = 0; /* Request */
 
-            if( ( tag == TAG_SET_OVERSCAN ) )
-            {
-                pt[pt_index++] = va_arg( vl, int ); /* Top pixels */
-                pt[pt_index++] = va_arg( vl, int ); /* Bottom pixels */
-                pt[pt_index++] = va_arg( vl, int ); /* Left pixels */
-                pt[pt_index++] = va_arg( vl, int ); /* Right pixels */
-            }
-            else
-            {
+            if ((tag == TAG_SET_OVERSCAN)) {
+                pt[pt_index++] = va_arg(vl, int); /* Top pixels */
+                pt[pt_index++] = va_arg(vl, int); /* Bottom pixels */
+                pt[pt_index++] = va_arg(vl, int); /* Left pixels */
+                pt[pt_index++] = va_arg(vl, int); /* Right pixels */
+            } else {
                 pt_index += 4;
             }
             break;
 
-        // The following code was written by Penguin_Spy, 2021
+            // The following code was written by Penguin_Spy, 2021
         case TAG_GET_POWER_STATE:
         case TAG_SET_POWER_STATE: // yeah, of course I have to implement this one myself to get USB working
-            printf("\tRPI_PropertyAddTag called with TAG_x_POWER_STATE\n");
+            //printf("\tRPI_PropertyAddTag called with TAG_x_POWER_STATE\n");
 
             pt[pt_index++] = 8;
             pt[pt_index++] = 0; /* Request */
-            pt[pt_index++] = va_arg( vl, int ); /* Device ID */
+            pt[pt_index++] = va_arg(vl, int); /* Device ID */
 
-            if( tag == TAG_SET_POWER_STATE ) {
-                pt[pt_index++] = va_arg( vl, int ); /* State (Bit 0: 0=off, 1=on; Bit 1: 0=do not wait, 1=wait; Bits 2-31: reserved for future use (set to 0)) */
+            if (tag == TAG_SET_POWER_STATE) {
+                pt[pt_index++] = va_arg(vl, int); /* State (Bit 0: 0=off, 1=on; Bit 1: 0=do not wait, 1=wait; Bits 2-31: reserved for future use (set to 0)) */
             } else {
                 pt[pt_index++] = -1; // give space for returned state (set to -1 to indicate if not set by GPU)
             }
             break;
-        // This concludes modifications made by Penguin_Spy
+            // This concludes modifications made by Penguin_Spy
 
         default:
             /* Unsupported tags, just remove the tag from the list */
@@ -205,42 +193,40 @@ void RPI_PropertyAddTag( rpi_mailbox_tag_t tag, ... )
     /* Make sure the tags are 0 terminated to end the list and update the buffer size */
     pt[pt_index] = 0;
 
-    va_end( vl );
+    va_end(vl);
 }
 
 
-int RPI_PropertyProcess( void )
-{
+int RPI_PropertyProcess(void) {
     int result;
 
 #if( PRINT_PROP_DEBUG == 1 )
-    printf( "%s Length: %d\n", __func__, pt[PT_OSIZE] );
+    //printf("%s Length: %d\n", __func__, pt[PT_OSIZE]);
 #endif
     /* Fill in the size of the buffer */
-    pt[PT_OSIZE] = ( pt_index + 1 ) << 2;
+    pt[PT_OSIZE] = (pt_index + 1) << 2;
     pt[PT_OREQUEST_OR_RESPONSE] = 0;
 
 #if( PRINT_PROP_DEBUG == 1 )
     int i;
-    for( i = 0; i < (pt[PT_OSIZE] >> 2); i++ )
-        printf( "Request: %3d %8.8X\n", i, pt[i] );
+    for (i = 0; i < (pt[PT_OSIZE] >> 2); i++)
+        //printf("Request: %3d %8.8X\n", i, pt[i]);
 #endif
-    RPI_Mailbox0Write( MB0_TAGS_ARM_TO_VC, (unsigned int)pt );
+        RPI_Mailbox0Write(MB0_TAGS_ARM_TO_VC, (unsigned int)pt);
 
-    printf( "\tMailbox0Write completed\n" );
+    //printf("\tMailbox0Write completed\n");
 
-    result = RPI_Mailbox0Read( MB0_TAGS_ARM_TO_VC );
+    result = RPI_Mailbox0Read(MB0_TAGS_ARM_TO_VC);
 
 #if( PRINT_PROP_DEBUG == 1 )
-    for( i = 0; i < (pt[PT_OSIZE] >> 2); i++ )
-        printf( "Response: %3d %8.8X\n", i, pt[i] );
+    for (i = 0; i < (pt[PT_OSIZE] >> 2); i++)
+        //printf("Response: %3d %8.8X\n", i, pt[i]);
 #endif
-    return result;
+        return result;
 }
 
 
-rpi_mailbox_property_t* RPI_PropertyGet( rpi_mailbox_tag_t tag )
-{
+rpi_mailbox_property_t* RPI_PropertyGet(rpi_mailbox_tag_t tag) {
     static rpi_mailbox_property_t property;
     int* tag_buffer = NULL;
 
@@ -249,26 +235,24 @@ rpi_mailbox_property_t* RPI_PropertyGet( rpi_mailbox_tag_t tag )
     /* Get the tag from the buffer. Start at the first tag position  */
     int index = 2;
 
-    while( index < ( pt[PT_OSIZE] >> 2 ) )
-    {
-        /* printf( "Test Tag: [%d] %8.8X\r\n", index, pt[index] ); */
-        if( pt[index] == tag )
-        {
+    while (index < (pt[PT_OSIZE] >> 2)) {
+        /* //printf( "Test Tag: [%d] %8.8X\r\n", index, pt[index] ); */
+        if (pt[index] == tag) {
             tag_buffer = &pt[index];
             break;
         }
 
         /* Progress to the next tag if we haven't yet discovered the tag */
-        index += ( pt[index + 1] >> 2 ) + 3;
+        index += (pt[index + 1] >> 2) + 3;
     }
 
     /* Return NULL of the property tag cannot be found in the buffer */
-    if( tag_buffer == NULL )
+    if (tag_buffer == NULL)
         return NULL;
 
     /* Return the required data */
     property.byte_length = tag_buffer[T_ORESPONSE] & 0xFFFF;
-    memcpy( property.data.buffer_8, &tag_buffer[T_OVALUE], property.byte_length );
+    memcpy(property.data.buffer_8, &tag_buffer[T_OVALUE], property.byte_length);
 
     return &property;
 }
