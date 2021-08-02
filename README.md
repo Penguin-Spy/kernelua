@@ -1,5 +1,5 @@
 # Kernelua
-> Pronounced "`Kernel-Lua`" (as one word), capitalized as a noun. `Lua` by itself has a capital `l`: http://www.lua.org/about.html#name.
+> Pronounced "`Kernel-Lua`" (as one word), capitalized as a noun. `Lua` by itself has a capital `L`: http://www.lua.org/about.html#name.
 
 Kernelua is a Rasberry Pi kernel written in C that allows running Lua as the operating system of a device. The primary goal is to run ComputerCraft's CraftOS on real hardware (ideally in a Pocket Computer enclosure).  
 This project is based on the valvers.com tutorial, check it out: https://www.valvers.com/open-software/raspberry-pi/bare-metal-programming-in-c-part-1.
@@ -16,4 +16,5 @@ The firmware will still properly boot without this file present, at least on my 
 
 # Compiling
 Kernelua is built using GNU make (unlike the tutorial which uses Cmake), so compiling is about as simple as running `make`.  
-However, you must first download the ARM compiler from the Arm website: https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-rm/downloads and extract it to `compiler/gcc-arm-none-eabi-VERSION/`.
+However, you must first download the ARM compiler from the Arm website: https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-rm/downloads and extract it to `compiler/gcc-arm-none-eabi-VERSION/`.  
+I only own a Rasberry Pi 3B+, and currently the build system only sets the proper flags for this model. If you have a different model, uhh look at the makefile and have fun :) Also if u use VS Code add the flags to the C/C++ extension settings so it doesn't yell at you.
