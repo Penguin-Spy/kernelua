@@ -24,6 +24,9 @@
 #define COLORS_PUREBLACK    0x000000
 #define COLORS_PUREWHITE    0xFFFFFF
 
+#define ERROR_NOTREADY      1
+#define ERROR_OOB_X         2
+#define ERROR_OOB_Y         3
 
 void RPI_TermInit(volatile uint32_t* in_fb, int width, int height);
 

@@ -29,16 +29,17 @@ void RPI_TermInit(volatile uint32_t* in_fb, int width, int height) {
 }
 
 int RPI_TermSetCursorPos(int x, int y) {
-    if (x >= 0 && x < fb_width) {
+    if (x >= 0 && x * FONT_WIDTH < fb_width) {
         cursor_x = x;
     } else {
-        return -1;
+        return ERROR_OOB_X;
     }
-    if (x >= 0 && y < fb_height) {
+    if (y >= 0 && y * FONT_HEIGHT < fb_height) {
         cursor_y = y;
     } else {
-        return -1;
+        return ERROR_OOB_Y;
     }
+    return 0;
 }
 
 // C can only return 1 variable
@@ -66,7 +67,7 @@ int RPI_TermGetBackgroundColor() {
 
 int RPI_TermPutC(char glyph) {
     if (!fb_ready) { // Terminal has not been initalized, printing could(will?) cause a null pointer dereference
-        return -1;
+        return ERROR_NOTREADY;
     }
 
     // Handle control characters
