@@ -33,8 +33,6 @@ volatile int uptime = 0;
 */
 void __attribute__((interrupt("ABORT"))) reset_vector(void) {
     outbyte('R');
-    outbyte('\r');
-    outbyte('\n');
     while (1) {
         LED_ON();
     }
@@ -47,9 +45,12 @@ void __attribute__((interrupt("ABORT"))) reset_vector(void) {
     executing this function. Just trap here as a debug solution.
 */
 void __attribute__((interrupt("UNDEF"))) undefined_instruction_vector(void) {
+    void* linkRegister;
+    asm("mov     %0, lr"    // move the link register into a c variable
+        : "=r" (linkRegister));
+
     outbyte('U');
-    outbyte('\r');
-    outbyte('\n');
+    printf(" LR: %x", linkRegister);
     while (1) {
         LED_ON();
     }
@@ -64,8 +65,6 @@ void __attribute__((interrupt("UNDEF"))) undefined_instruction_vector(void) {
 */
 void __attribute__((interrupt("SWI"))) software_interrupt_vector(void) {
     outbyte('S');
-    outbyte('\r');
-    outbyte('\n');
     while (1) {
         LED_ON();
     }
@@ -80,10 +79,9 @@ void __attribute__((interrupt("SWI"))) software_interrupt_vector(void) {
 */
 void __attribute__((interrupt("ABORT"))) prefetch_abort_vector(void) {
     outbyte('P');
-    return;
-    //while (1) {
-    //    LED_ON();
-    //}
+    while (1) {
+        LED_ON();
+    }
 }
 
 
@@ -94,11 +92,9 @@ void __attribute__((interrupt("ABORT"))) prefetch_abort_vector(void) {
     solution.
 */
 void __attribute__((interrupt("ABORT"))) data_abort_vector(void) {
-    //LED_ON();
     outbyte('D');
-    outbyte('\r');
-    outbyte('\n');
     while (1) {
+        LED_ON();
     }
 }
 
@@ -131,56 +127,122 @@ void __attribute__((interrupt("ABORT"))) data_abort_vector(void) {
 
 typedef void TIRQHandler(void* pParam);
 
-TIRQHandler* IRQHandlers[IRQ_LINES];
-void* IRQParams[IRQ_LINES];
+static TIRQHandler* IRQHandlers[IRQ_LINES] = { 0 };
+static void* IRQParams[IRQ_LINES] = { 0 };
 
+#define TIMER_LINES 8
+
+static unsigned TimerDelays[TIMER_LINES] = { 0 };
+static TKernelTimerHandler* TimerHandlers[TIMER_LINES] = { 0 };
+static void* TimerParams[TIMER_LINES] = { 0 };
+static void* TimerContexts[TIMER_LINES] = { 0 };
+
+
+#define	EnableInterrupts()	__asm volatile ("cpsie i")
+#define	DisableInterrupts()	__asm volatile ("cpsid i")
+
+#define DataSyncBarrier()	__asm volatile ("mcr p15, 0, %0, c7, c10, 4" : : "r" (0) : "memory")
+#define DataMemBarrier() 	__asm volatile ("mcr p15, 0, %0, c7, c10, 5" : : "r" (0) : "memory")
 
 void __attribute__((interrupt("IRQ"))) interrupt_vector(void) {
+    DisableInterrupts();
+    DataMemBarrier();
+
     static int lit = 0;
+    static int jiffies = 0;
     static int x = 237, y;
+    static int color;
+
+    x = RPI_TermGetCursorX();
+    y = RPI_TermGetCursorY();
+    RPI_TermSetCursorPos(239, IRQ_LINES);
+    RPI_TermPutC('{');
+    RPI_TermSetCursorPos(x, y);
+
     rpi_irq_controller_t* rpiIRQController = (rpi_irq_controller_t*)RPI_INTERRUPT_CONTROLLER_BASE;
 
     for (int nIRQ = 0; nIRQ < IRQ_LINES; nIRQ++) {
         x = RPI_TermGetCursorX();
-        y = RPI_TermGetCursorX();
+        y = RPI_TermGetCursorY();
         RPI_TermSetCursorPos(239, nIRQ);
         printf("?");
         RPI_TermSetCursorPos(x, y);
+        DataMemBarrier();
         if (ARM_IC_IRQ_PENDING(nIRQ) & ARM_IRQ_MASK(nIRQ)) {
             // this irq is pending
+            color = RPI_TermGetTextColor();
+            RPI_TermSetTextColor(COLORS_LIGHTGRAY);
             printf("IRQ %i is pending. ", nIRQ);
+            RPI_TermSetTextColor(color);
 
             x = RPI_TermGetCursorX();
-            y = RPI_TermGetCursorX();
+            y = RPI_TermGetCursorY();
             RPI_TermSetCursorPos(239, nIRQ);
             printf("!");
             RPI_TermSetCursorPos(x, y);
 
             TIRQHandler* pHandler = IRQHandlers[nIRQ];
             if (pHandler) {
+                color = RPI_TermGetTextColor();
+                RPI_TermSetTextColor(COLORS_GRAY);
                 printf("IRQ %u using handler %x with param %x", nIRQ, pHandler, IRQParams[nIRQ]);
+                RPI_TermSetTextColor(color);
+                DataMemBarrier();
+                DataSyncBarrier();
                 (*pHandler) (IRQParams[nIRQ]);
+                DataMemBarrier();
             }
 
-            RPI_GetArmTimer()->IRQClear = 1;
             if (nIRQ == 64) {
-                // Flip the LED
-                if (lit) {
-                    LED_OFF();
-                    lit = 0;
-                    x = RPI_TermGetCursorX();
-                    y = RPI_TermGetCursorX();
-                    RPI_TermSetCursorPos(239, nIRQ);
-                    printf(".");
-                    RPI_TermSetCursorPos(x, y);
-                } else {
-                    LED_ON();
-                    lit = 1;
-                    x = RPI_TermGetCursorX();
-                    y = RPI_TermGetCursorX();
-                    RPI_TermSetCursorPos(239, nIRQ);
-                    printf("@");
-                    RPI_TermSetCursorPos(x, y);
+                RPI_GetArmTimer()->IRQClear = 1;
+
+                // Go through all timers, checking if they have a handler registered
+                for (TKernelTimerHandle nTimer = 0; nTimer < TIMER_LINES; nTimer++) {
+                    if (TimerHandlers[nTimer] != 0) {   // If there's a handler
+                        if (TimerDelays[nTimer] > 0) {  // If there's still time left,
+                            TimerDelays[nTimer] -= 1;   // decrement the time left by 1 (/100 Hz)
+                        } else {    // Otherwise,
+                            // Call the handler
+                            TKernelTimerHandler* pHandler = TimerHandlers[nTimer];
+                            DataMemBarrier();
+                            DataSyncBarrier();
+                            (*pHandler) (nTimer, TimerParams[nTimer], TimerContexts[nTimer]);
+                            DataMemBarrier();
+
+                            // and remove it afterwards
+                            TimerHandlers[nTimer] = 0;
+                        }
+                    }
+                }
+
+
+                // Flip the LED every 100 timers
+                jiffies++;
+                if (jiffies == 25) {
+                    jiffies = 0;
+
+                    /*color = RPI_TermGetTextColor();
+                    RPI_TermSetTextColor(COLORS_YELLOW);*/
+                    if (lit) {
+                        LED_OFF();
+                        lit = 0;
+                        x = RPI_TermGetCursorX();
+                        y = RPI_TermGetCursorY();
+                        RPI_TermSetCursorPos(239, nIRQ);
+                        printf("_");
+                        RPI_TermSetCursorPos(0, 0);
+                        printf("   ");
+                        RPI_TermSetCursorPos(x, y);
+                    } else {
+                        LED_ON();
+                        lit = 1;
+                        x = RPI_TermGetCursorX();
+                        y = RPI_TermGetCursorY();
+                        RPI_TermSetCursorPos(239, nIRQ);
+                        printf("@");
+                        RPI_TermSetCursorPos(x, y);
+                    }
+                    //RPI_TermSetTextColor(color);
                 }
             }
         }
@@ -217,7 +279,16 @@ void __attribute__((interrupt("IRQ"))) interrupt_vector(void) {
                printf(" On");
            }
        }*/
-    RPI_TermPutC(0x1C);
+
+    x = RPI_TermGetCursorX();
+    y = RPI_TermGetCursorY();
+    RPI_TermSetCursorPos(239, IRQ_LINES);
+    RPI_TermPutC('}');
+    RPI_TermSetCursorPos(x, y);
+
+    DataMemBarrier();
+    DataSyncBarrier();
+    EnableInterrupts();
 }
 
 
@@ -230,22 +301,57 @@ void __attribute__((interrupt("IRQ"))) interrupt_vector(void) {
 void ConnectIRQHandler(unsigned nIRQ, TInterruptHandler* pHandler, void* pParam) {
     rpi_irq_controller_t* rpiIRQController = (rpi_irq_controller_t*)RPI_INTERRUPT_CONTROLLER_BASE;
     printf("enabling irq %u (group ", nIRQ);
-    if (nIRQ < ARM_IRQ2_BASE) {
-        rpiIRQController->Enable_IRQs_1 = ARM_IRQ_MASK(nIRQ);
-        printf("one). ");
-    } else {
-        if (nIRQ < ARM_IRQBASIC_BASE) {
-            rpiIRQController->Enable_IRQs_2 = ARM_IRQ_MASK(nIRQ);
-            printf("two). ");
-        } else {
-            rpiIRQController->Enable_Basic_IRQs = ARM_IRQ_MASK(nIRQ);
-            printf("basic). ");
-        }
-    }
 
     IRQHandlers[nIRQ] = pHandler;
     IRQParams[nIRQ] = pParam;
+    DataSyncBarrier();
+    DataMemBarrier();
+
+
+    if (nIRQ < ARM_IRQ2_BASE) {
+        rpiIRQController->Enable_IRQs_1 = ARM_IRQ_MASK(nIRQ);
+        DataMemBarrier();
+        printf("one).\n");
+    } else {
+        if (nIRQ < ARM_IRQBASIC_BASE) {
+            rpiIRQController->Enable_IRQs_2 = ARM_IRQ_MASK(nIRQ);
+            DataMemBarrier();
+            printf("two).\n");
+        } else {
+            rpiIRQController->Enable_Basic_IRQs = ARM_IRQ_MASK(nIRQ);
+            DataMemBarrier();
+            printf("basic).\n");
+        }
+    }
 }
+
+void ConnectTimerHandler(
+    unsigned nHzDelay,    // in HZ units (see "system configuration" above)
+    TKernelTimerHandler* pHandler,
+    void* pParam, void* pContext) {
+
+    // Search for an empty timer line
+    int nTimer;
+    for (nTimer = 0; nTimer < TIMER_LINES; nTimer++) {
+        if (TimerHandlers[nTimer] == 0) {
+            break;
+        }
+    }
+    // No empty timer lines
+    if (nTimer == TIMER_LINES) {
+        printf("OUT OF TIMER LINES UH OH\nTimer handler %x not registered!", pHandler);
+        return;
+    }
+
+    printf("connecting timer %i with delay %u to call handler %x with param %x and context %x", nTimer, nHzDelay, pHandler, pParam, pContext);
+    TimerDelays[nTimer] = nHzDelay;
+    TimerHandlers[nTimer] = pHandler;
+    TimerParams[nTimer] = pParam;
+    TimerContexts[nTimer] = pContext;
+    DataMemBarrier();
+}
+
+
 /**
     @brief The FIQ Interrupt Handler
 
@@ -273,8 +379,6 @@ void ConnectIRQHandler(unsigned nIRQ, TInterruptHandler* pHandler, void* pParam)
 */
 void __attribute__((interrupt("FIQ"))) fast_interrupt_vector(void) {
     outbyte('F');
-    outbyte('\r');
-    outbyte('\n');
     while (1) {
         LED_ON();
     }

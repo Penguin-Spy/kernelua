@@ -10,6 +10,7 @@
 #include "rpi-term.h"
 #include "rpi-interrupts.h"
 
+
 // Timer
 void MsDelay(unsigned nMilliSeconds) {
     RPI_WaitMicroSeconds(nMilliSeconds * 1000); // i had to google this, yes its 🔊
@@ -28,12 +29,12 @@ unsigned StartKernelTimer(
     unsigned nHzDelay,    // in HZ units (see "system configuration" above)
     TKernelTimerHandler* pHandler,
     void* pParam, void* pContext) {	// handed over to the timer handler
-    //printf("StartKernelTimer(%u, %x, %x, %x)\n", nHzDelay, pHandler, pParam, pContext);
+    printf("StartKernelTimer(%u, %x, %x, %x)\n", nHzDelay, pHandler, pParam, pContext);
     return 0;
 }
 
 void CancelKernelTimer(unsigned hTimer) {
-    //printf("CancelKernelTimer(%u)\n", hTimer);
+    printf("CancelKernelTimer(%u)\n", hTimer);
     return;
 }
 
@@ -65,7 +66,7 @@ void ConnectInterrupt(unsigned nIRQ, TInterruptHandler* pHandler, void* pParam) 
             IRQHandlers[nIRQ](IRQParams[nIRQ]);
         }
     }*/
-    //printf("ConnectInterrupt(%u, %x, %x)\n", nIRQ, pHandler, pParam);
+    printf("ConnectInterrupt(%u, %x, %x)\n", nIRQ, pHandler, pParam);
     ConnectIRQHandler(nIRQ, pHandler, pParam);
     return;
 }
@@ -154,10 +155,10 @@ void uspi_assertion_failed(const char* pExpr, const char* pFile, unsigned nLine)
 
     RPI_TermSetTextColor(COLORS_RED);
     RPI_TermSetBackgroundColor(COLORS_BLACK);
-    int x = RPI_TermGetCursorX();
-    int y = RPI_TermGetCursorX();
+    /*int x = RPI_TermGetCursorX();
+    int y = RPI_TermGetCursorY();*/
     printf("<ASSERT_FAIL>: %s, in %s:%i\n", pExpr, pFile, nLine);
-    RPI_TermSetCursorPos(x, y);
+    //RPI_TermSetCursorPos(x, y);
 
     RPI_TermSetTextColor(old_fg);
     RPI_TermSetBackgroundColor(old_bg);
