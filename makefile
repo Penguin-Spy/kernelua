@@ -24,7 +24,7 @@ C_DEFINES = -DIOBPLUS=1 -DRPI3=1
 
 TOOLCHAIN = compiler/gcc-arm-none-eabi-10-2020-q4-major/bin/arm-none-eabi
 C_INCLUDES = -I$(SRCDIR)/inc -I$(SRCDIR)
-C_FLAGS = -mfpu=crypto-neon-fp-armv8 -mfloat-abi=hard -march=armv8-a+crc -mtune=cortex-a53 -mfpu=crypto-neon-fp-armv8 -mfloat-abi=hard -march=armv8-a+crc -mtune=cortex-a53 -O4 -g -nostartfiles -mfloat-abi=hard
+C_FLAGS   = -mfpu=crypto-neon-fp-armv8 -mfloat-abi=hard -march=armv8-a+crc -mtune=cortex-a53 -O2 -g -nostartfiles
 ASM_FLAGS = -mfpu=crypto-neon-fp-armv8 -mfloat-abi=hard -march=armv8-a+crc -mtune=cortex-a53
 
 all: $(BINDIR)/kernel.img
@@ -42,10 +42,10 @@ $(OBJDIR)/%.obj: $(SRCDIR)/%.S
 	@$(TOOLCHAIN)-gcc $(C_INCLUDES) $(C_DEFINES) $(ASM_FLAGS) -o $@ -c $^
 
 # Link ELF executable
-$(BINDIR)/kernel.elf: $(OBJFILES)
+$(BINDIR)/kernel.elf: $(OBJFILES) $(LIBFILES)
 	@echo [Linking]: $^ -^> $@
 	$(ENSUREDIR)
-	@$(TOOLCHAIN)-gcc $(C_INCLUDES) $(C_DEFINES) $(C_FLAGS) $^ $(LIBFILES) -o $(BINDIR)/kernel.elf
+	@$(TOOLCHAIN)-gcc $(C_INCLUDES) $(C_DEFINES) $(C_FLAGS) $^ -o $(BINDIR)/kernel.elf
 
 # Extract the kernel image
 $(BINDIR)/kernel.img: $(BINDIR)/kernel.elf
