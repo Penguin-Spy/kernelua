@@ -5,12 +5,5 @@
     "C_Cpp.vcFormat.newLine.beforeElse": false,
     "C_Cpp.vcFormat.newLine.beforeOpenBrace.block": "sameLine",
     "C_Cpp.vcFormat.newLine.beforeOpenBrace.function": "sameLine",
-    "C_Cpp.vcFormat.indent.caseLabels": true,
-    "files.associations": {
-        "rpi-interrupts-controller.h": "c",
-        "rpi-interrupts.h": "c",
-        "stdarg.h": "c",
-        "uspios.h": "c",
-        "stdio.h": "c"
-    },
+    "C_Cpp.vcFormat.indent.caseLabels": true
 }
