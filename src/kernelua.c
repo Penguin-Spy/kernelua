@@ -19,7 +19,7 @@
 #define SCREEN_HEIGHT 1080
 #define SCREEN_DEPTH 32 /* Stick to 32-bit depth for ease-of tutorial code */
 
-#define TIMER_HERTZ 4 /*  */
+#define TIMER_HERTZ 100 /* Default hertz for libuspi (can be changed, but best to leave at default for now) */
 
 extern void _enable_interrupts(void);
 
@@ -246,10 +246,10 @@ void kernel_main(unsigned int r0, unsigned int r1, unsigned int atags) {
     printf("But it's running in a bare-metal environment (No Operating System)!");
     RPI_TermSetTextColor(COLORS_BLUE);
     RPI_TermSetCursorPos(6, 8);
-    printf("this was quite hard to get working please clap\n");
-    printf("Initialised Framebuffer: %dx%d ", width, height);
+    printf("this was quite hard to get working please clap\n");*/
+    printf("Initialised Framebuffer: %dx%d\n\n", width, height);
 
-    RPI_TermSetCursorPos(0, 13);
+    /*RPI_TermSetCursorPos(0, 13);
     RPI_TermSetTextColor(COLORS_WHITE);
 
     // Print out every single character from 0x01 to 0xFF (not 0x00, that would terminate the string before we print any of it :P
@@ -280,7 +280,9 @@ pqrstuvwxyz{|}~\x7F\n\
 */
     int result;
 
-    RPI_TermSetCursorPos(0, 100);
+    //RPI_TermSetCursorPos(0, 0);
+    RPI_TermSetTextColor(COLORS_PURPLE);
+
     RPI_TermSetTextColor(COLORS_WHITE);
     result = USPiInitialize();
 
