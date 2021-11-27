@@ -247,6 +247,14 @@ void kernel_main(unsigned int r0, unsigned int r1, unsigned int atags) {
     RPI_TermSetTextColor(COLORS_BLUE);
     RPI_TermSetCursorPos(6, 8);
     printf("this was quite hard to get working please clap\n");*/
+    if (fb[0] != 0x000000) {
+        RPI_TermSetTextColor(COLORS_RED);
+        printf("CAUGHT SOFT RESET");
+        return; // interrupts still happen, this doesn't properly halt
+    }
+
+
+
     printf("Initialised Framebuffer: %dx%d\n\n", width, height);
 
     /*RPI_TermSetCursorPos(0, 13);

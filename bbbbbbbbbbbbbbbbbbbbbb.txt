@@ -1,0 +1,20 @@
+undefined instruction or data abort
+
+undefined instruction:
+  THEORY #1: libuspi is being built with compiler flags that cause it to use certain processor instructions that are not valid (and need to be enabled)
+    solution: look at uspi's example env( & that other usage of it)'s startup code to see what exactly it does/enables
+              also does it use VFP instructions?
+              also check literally everything the startup code does to make sure we do everything necessary
+  THEORY #2: our IRQ handling code is causing jumps to arbitrary memory, causing garbage to be executed, obviously leading to undefined instructions
+              may also be causing the data aborts (when the garbage code is technically valid but does invalid stuff)
+                we should be displaying whatever address we're jumping to b4 calling the handler (& also which IRQ caused it)
+                so this ideally isnt the problem
+                however, i haven't checked, so i shouldn't rule it out
+
+data abort:
+  THEORY #1: bug/uh oh in libuspi code (potentially with memory allocation/structs)
+    solution: uhhhhhhhhhhhhhhh
+  THEORY #2: bug in our IRQ handling
+    solution: find it and SMAK
+
+ok spleepl time 2

@@ -210,7 +210,9 @@ _setup_interrupt_table:
     bl _cstartup
 
     // If main does return for some reason, just catch it and stay here.
+    // This is also where the other unused cores branch to (we only run on core 0).
 _inf_loop:
+    wfi // give the cores some zzz's (idk if this actually does anything on the RPI hardware)
     b _inf_loop
 
 
@@ -228,6 +230,11 @@ _get_stack_pointer:
     // Return from the function
     mov     pc, lr
 
+//_get_link_register:
+    // Return the link register's value
+    // uhh like a mrs or smthing
+
+//    mov     pc, lr
 
 _enable_interrupts:
     mrs     r0, cpsr
@@ -236,3 +243,4 @@ _enable_interrupts:
     cpsie   i
 
     mov     pc, lr
+

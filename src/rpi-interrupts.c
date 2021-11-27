@@ -45,11 +45,12 @@ void __attribute__((interrupt("ABORT"))) reset_vector(void) {
     executing this function. Just trap here as a debug solution.
 */
 void __attribute__((interrupt("UNDEF"))) undefined_instruction_vector(void) {
-    void* linkRegister;
+    int* linkRegister;
     asm("mov     %0, lr"    // move the link register into a c variable
         : "=r" (linkRegister));
 
     outbyte('U');
+    outbyte(*linkRegister);
     printf(" LR: %x", linkRegister);
     while (1) {
         LED_ON();
@@ -144,7 +145,12 @@ static void* TimerContexts[TIMER_LINES] = { 0 };
 #define DataSyncBarrier()	__asm volatile ("mcr p15, 0, %0, c7, c10, 4" : : "r" (0) : "memory")
 #define DataMemBarrier() 	__asm volatile ("mcr p15, 0, %0, c7, c10, 5" : : "r" (0) : "memory")
 
+//#define SaveContext() __asm volatile ("SAVE_CONTEXT")
+//#define RestoreContext() __asm volatile ("RESTORE_CONTEXT")
+
 void __attribute__((interrupt("IRQ"))) interrupt_vector(void) {
+    //SaveContext();
+
     DisableInterrupts();
     DataMemBarrier();
 
@@ -289,6 +295,8 @@ void __attribute__((interrupt("IRQ"))) interrupt_vector(void) {
     DataMemBarrier();
     DataSyncBarrier();
     EnableInterrupts();
+
+    //RestoreContext();
 }
 
 
