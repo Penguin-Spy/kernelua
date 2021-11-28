@@ -85,6 +85,11 @@ int SetPowerStateOn(unsigned nDeviceId) {
 // "get board MAC address"
 // returns 0 on failure
 int GetMACAddress(unsigned char Buffer[6]) {
+
+    RPI_TermSetTextColor(COLORS_PINK);
+    printf("GETTING MAC ADDRESS\n");
+
+
     rpi_mailbox_property_t* mp;
 
     RPI_PropertyInit();
@@ -99,6 +104,11 @@ int GetMACAddress(unsigned char Buffer[6]) {
     Buffer[3] = mp->data.buffer_32[3];
     Buffer[4] = mp->data.buffer_32[4];
     Buffer[5] = mp->data.buffer_32[5];
+
+    RPI_TermSetTextColor(COLORS_PINK);
+    printf("GOT MAC ADDRESS!\n");
+
+    return 1;
 }
 
 // Logging

@@ -103,3 +103,18 @@ int RPI_TermPutC(char glyph) {
         }
     }
 }
+
+int RPI_TermPrintAt(int x, int y, char* string) {
+    int old_x = RPI_TermGetCursorX();
+    int old_y = RPI_TermGetCursorY();
+    RPI_TermSetCursorPos(x, y);
+    printf(string);
+    RPI_TermSetCursorPos(old_x, old_y);
+}
+
+int RPI_TermPrintRegister(uint64_t reg) {
+    RPI_TermPutC(reg & 0xFF000000);
+    RPI_TermPutC(reg & 0x00FF0000);
+    RPI_TermPutC(reg & 0x0000FF00);
+    RPI_TermPutC(reg & 0x000000FF);
+}

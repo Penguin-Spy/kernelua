@@ -72,6 +72,63 @@ void kernel_main(unsigned int r0, unsigned int r1, unsigned int atags) {
     /* Initialise the UART */
     RPI_AuxMiniUartInit(115200, 8);
 
+    /* Initialise a framebuffer using the property mailbox interface */
+    RPI_PropertyInit();
+    RPI_PropertyAddTag(TAG_ALLOCATE_BUFFER);
+    RPI_PropertyAddTag(TAG_SET_PHYSICAL_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT);
+    RPI_PropertyAddTag(TAG_SET_VIRTUAL_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT * 2);
+    RPI_PropertyAddTag(TAG_SET_DEPTH, SCREEN_DEPTH);
+    RPI_PropertyAddTag(TAG_GET_PITCH);
+    RPI_PropertyAddTag(TAG_GET_PHYSICAL_SIZE);
+    RPI_PropertyAddTag(TAG_GET_DEPTH);
+    RPI_PropertyProcess();
+
+    /* Produce a colour spread across the screen */
+    /*for (int y = 0; y < height; y++) {
+        int line_offset = y * width;
+
+        for (int x = 0; x < width; x++) {
+            fb[line_offset + x] = pixel_value++;
+        }
+    }*/
+
+    if ((mp = RPI_PropertyGet(TAG_ALLOCATE_BUFFER))) {
+        fb = (volatile uint32_t*)(mp->data.buffer_32[0] & ~0xC0000000);
+    }
+
+    if ((mp = RPI_PropertyGet(TAG_GET_PHYSICAL_SIZE))) {
+        width = mp->data.buffer_32[0];
+        height = mp->data.buffer_32[1];
+    }
+
+    RPI_TermInit(fb, width, height);
+
+    if (fb[0] != 0x000000) {
+        RPI_TermSetTextColor(COLORS_RED);
+        printf("CAUGHT SOFT RESET");
+        return; // interrupts still happen, this doesn't properly halt
+    }
+
+    printf("Initialised Framebuffer: %dx%d ", width, height);
+
+    if ((mp = RPI_PropertyGet(TAG_GET_DEPTH))) {
+        int bpp = mp->data.buffer_32[0];
+        printf("%dbpp\r\n", bpp);
+        if (bpp != 32) {
+            printf("THIS TUTORIAL ONLY SUPPORTS DEPTH OF 32bpp!\r\n");
+        }
+    }
+
+    if ((mp = RPI_PropertyGet(TAG_GET_PITCH))) {
+        pitch_bytes = mp->data.buffer_32[0];
+        printf("Pitch: %d bytes\r\n", pitch_bytes);
+    }
+
+    if ((mp = RPI_PropertyGet(TAG_ALLOCATE_BUFFER))) {
+        fb = (volatile uint32_t*)(mp->data.buffer_32[0] & ~0xC0000000);
+        printf("Framebuffer address: %8.8X\r\n", (unsigned int)fb);
+    }
+
     /* Print to the UART using the standard libc functions */
     printf("\r\n");
     printf("------------------------------------------\r\n");
@@ -174,52 +231,6 @@ void kernel_main(unsigned int r0, unsigned int r1, unsigned int atags) {
         printf("Serial Number: %8.8X%8.8X\r\n", mp->data.buffer_32[0], mp->data.buffer_32[1]);
     }
 
-    /* Initialise a framebuffer using the property mailbox interface */
-    RPI_PropertyInit();
-    RPI_PropertyAddTag(TAG_ALLOCATE_BUFFER);
-    RPI_PropertyAddTag(TAG_SET_PHYSICAL_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT);
-    RPI_PropertyAddTag(TAG_SET_VIRTUAL_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT * 2);
-    RPI_PropertyAddTag(TAG_SET_DEPTH, SCREEN_DEPTH);
-    RPI_PropertyAddTag(TAG_GET_PITCH);
-    RPI_PropertyAddTag(TAG_GET_PHYSICAL_SIZE);
-    RPI_PropertyAddTag(TAG_GET_DEPTH);
-    RPI_PropertyProcess();
-
-    if ((mp = RPI_PropertyGet(TAG_GET_PHYSICAL_SIZE))) {
-        width = mp->data.buffer_32[0];
-        height = mp->data.buffer_32[1];
-
-        printf("Initialised Framebuffer: %dx%d ", width, height);
-    }
-
-    if ((mp = RPI_PropertyGet(TAG_GET_DEPTH))) {
-        int bpp = mp->data.buffer_32[0];
-        printf("%dbpp\r\n", bpp);
-        if (bpp != 32) {
-            printf("THIS TUTORIAL ONLY SUPPORTS DEPTH OF 32bpp!\r\n");
-        }
-    }
-
-    if ((mp = RPI_PropertyGet(TAG_GET_PITCH))) {
-        pitch_bytes = mp->data.buffer_32[0];
-        printf("Pitch: %d bytes\r\n", pitch_bytes);
-    }
-
-    if ((mp = RPI_PropertyGet(TAG_ALLOCATE_BUFFER))) {
-        fb = (volatile uint32_t*)(mp->data.buffer_32[0] & ~0xC0000000);
-        printf("Framebuffer address: %8.8X\r\n", (unsigned int)fb);
-    }
-
-    /* Produce a colour spread across the screen */
-    /*for (int y = 0; y < height; y++) {
-        int line_offset = y * width;
-
-        for (int x = 0; x < width; x++) {
-            fb[line_offset + x] = pixel_value++;
-        }
-    }*/
-
-    RPI_TermInit(fb, width, height);
 
     /*RPI_TermSetBackgroundColor(COLORS_PINK);
     RPI_TermSetTextColor(COLORS_YELLOW);
@@ -247,15 +258,10 @@ void kernel_main(unsigned int r0, unsigned int r1, unsigned int atags) {
     RPI_TermSetTextColor(COLORS_BLUE);
     RPI_TermSetCursorPos(6, 8);
     printf("this was quite hard to get working please clap\n");*/
-    if (fb[0] != 0x000000) {
-        RPI_TermSetTextColor(COLORS_RED);
-        printf("CAUGHT SOFT RESET");
-        return; // interrupts still happen, this doesn't properly halt
-    }
 
 
 
-    printf("Initialised Framebuffer: %dx%d\n\n", width, height);
+    //printf("Initialised Framebuffer: %dx%d\n\n", width, height);
 
     /*RPI_TermSetCursorPos(0, 13);
     RPI_TermSetTextColor(COLORS_WHITE);

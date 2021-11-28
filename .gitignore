@@ -12,3 +12,6 @@ compiler
 card
 firmware
 .github/workflows
+
+#debugging disassembly output
+kernel.disasm

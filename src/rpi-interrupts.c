@@ -44,14 +44,15 @@ void __attribute__((interrupt("ABORT"))) reset_vector(void) {
     If an undefined intstruction is encountered, the CPU will start
     executing this function. Just trap here as a debug solution.
 */
-void __attribute__((interrupt("UNDEF"))) undefined_instruction_vector(void) {
-    int* linkRegister;
+void /*__attribute__((interrupt("UNDEF")))*/ undefined_instruction_vector(void) {
+    uint64_t linkRegister;
     asm("mov     %0, lr"    // move the link register into a c variable
         : "=r" (linkRegister));
 
-    outbyte('U');
-    outbyte(*linkRegister);
-    printf(" LR: %x", linkRegister);
+    asm("push	{r0, r1, r2, r3, r4, r5, ip, lr}");
+    RPI_TermPrintRegister(linkRegister);
+    //outbyte('U');
+    //printf(" LR: %x", linkRegister);
     while (1) {
         LED_ON();
     }
@@ -92,8 +93,15 @@ void __attribute__((interrupt("ABORT"))) prefetch_abort_vector(void) {
     The CPU will start executing this function. Just trap here as a debug
     solution.
 */
-void __attribute__((interrupt("ABORT"))) data_abort_vector(void) {
-    outbyte('D');
+void /*__attribute__((interrupt("ABORT")))*/ data_abort_vector(void) {
+    uint64_t linkRegister;
+
+    asm("mov     %0, lr"    // move the link register into a c variable
+        : "=r" (linkRegister));
+    asm("push	{r0, r1, r2, r3, r4, r5, ip, lr}");
+    //outbyte('D');
+    RPI_TermPrintRegister(linkRegister);
+    //printf("LR: %x", linkRegister);
     while (1) {
         LED_ON();
     }
@@ -139,11 +147,11 @@ static void* TimerParams[TIMER_LINES] = { 0 };
 static void* TimerContexts[TIMER_LINES] = { 0 };
 
 
-#define	EnableInterrupts()	__asm volatile ("cpsie i")
-#define	DisableInterrupts()	__asm volatile ("cpsid i")
+#define	EnableInterrupts()	//__asm volatile ("cpsie i")
+#define	DisableInterrupts()	//__asm volatile ("cpsid i")
 
-#define DataSyncBarrier()	__asm volatile ("mcr p15, 0, %0, c7, c10, 4" : : "r" (0) : "memory")
-#define DataMemBarrier() 	__asm volatile ("mcr p15, 0, %0, c7, c10, 5" : : "r" (0) : "memory")
+#define DataSyncBarrier()	//__asm volatile ("mcr p15, 0, %0, c7, c10, 4" : : "r" (0) : "memory")
+#define DataMemBarrier() 	//__asm volatile ("mcr p15, 0, %0, c7, c10, 5" : : "r" (0) : "memory")
 
 //#define SaveContext() __asm volatile ("SAVE_CONTEXT")
 //#define RestoreContext() __asm volatile ("RESTORE_CONTEXT")
@@ -159,60 +167,78 @@ void __attribute__((interrupt("IRQ"))) interrupt_vector(void) {
     static int x = 237, y;
     static int color;
 
-    x = RPI_TermGetCursorX();
-    y = RPI_TermGetCursorY();
-    RPI_TermSetCursorPos(239, IRQ_LINES);
-    RPI_TermPutC('{');
-    RPI_TermSetCursorPos(x, y);
+    RPI_TermPrintAt(239, IRQ_LINES, "{");
 
     rpi_irq_controller_t* rpiIRQController = (rpi_irq_controller_t*)RPI_INTERRUPT_CONTROLLER_BASE;
 
     for (int nIRQ = 0; nIRQ < IRQ_LINES; nIRQ++) {
-        x = RPI_TermGetCursorX();
-        y = RPI_TermGetCursorY();
-        RPI_TermSetCursorPos(239, nIRQ);
-        printf("?");
-        RPI_TermSetCursorPos(x, y);
+        RPI_TermPrintAt(239, nIRQ, "?");
+
         DataMemBarrier();
         if (ARM_IC_IRQ_PENDING(nIRQ) & ARM_IRQ_MASK(nIRQ)) {
             // this irq is pending
             color = RPI_TermGetTextColor();
             RPI_TermSetTextColor(COLORS_LIGHTGRAY);
-            printf("IRQ %i is pending. ", nIRQ);
+            //printf("IRQ %i is pending. ", nIRQ);
             RPI_TermSetTextColor(color);
 
-            x = RPI_TermGetCursorX();
-            y = RPI_TermGetCursorY();
-            RPI_TermSetCursorPos(239, nIRQ);
-            printf("!");
-            RPI_TermSetCursorPos(x, y);
+            RPI_TermPrintAt(239, nIRQ, "!");
 
             TIRQHandler* pHandler = IRQHandlers[nIRQ];
             if (pHandler) {
                 color = RPI_TermGetTextColor();
-                RPI_TermSetTextColor(COLORS_GRAY);
-                printf("IRQ %u using handler %x with param %x", nIRQ, pHandler, IRQParams[nIRQ]);
+                RPI_TermSetTextColor(COLORS_CYAN);
+                //printf("IRQ %u using handler %x with param %x", nIRQ, pHandler, IRQParams[nIRQ]);
                 RPI_TermSetTextColor(color);
                 DataMemBarrier();
                 DataSyncBarrier();
                 (*pHandler) (IRQParams[nIRQ]);
+                RPI_TermPrintAt(239, nIRQ, "#");
                 DataMemBarrier();
             }
 
             if (nIRQ == 64) {
+                color = RPI_TermGetTextColor();
+                RPI_TermSetTextColor(COLORS_GRAY);
+                //printf("Using timer handler");
+                RPI_TermSetTextColor(color);
                 RPI_GetArmTimer()->IRQClear = 1;
 
                 // Go through all timers, checking if they have a handler registered
                 for (TKernelTimerHandle nTimer = 0; nTimer < TIMER_LINES; nTimer++) {
+
+                    color = RPI_TermGetTextColor();
+                    RPI_TermSetTextColor(COLORS_YELLOW);
+                    RPI_TermPrintAt(238, nTimer, "?");
+                    RPI_TermSetTextColor(color);
+
                     if (TimerHandlers[nTimer] != 0) {   // If there's a handler
                         if (TimerDelays[nTimer] > 0) {  // If there's still time left,
                             TimerDelays[nTimer] -= 1;   // decrement the time left by 1 (/100 Hz)
+
+                            color = RPI_TermGetTextColor();
+                            RPI_TermSetTextColor(COLORS_YELLOW);
+                            RPI_TermPrintAt(238, nTimer, "_");
+                            RPI_TermSetTextColor(color);
+
                         } else {    // Otherwise,
                             // Call the handler
                             TKernelTimerHandler* pHandler = TimerHandlers[nTimer];
+
+                            color = RPI_TermGetTextColor();
+                            RPI_TermSetTextColor(COLORS_LIGHTBLUE);
+                            //printf("Timer %u using handler %x with context %x", nTimer, pHandler, TimerContexts[nTimer]);
+                            RPI_TermSetTextColor(color);
+
                             DataMemBarrier();
                             DataSyncBarrier();
                             (*pHandler) (nTimer, TimerParams[nTimer], TimerContexts[nTimer]);
+
+                            color = RPI_TermGetTextColor();
+                            RPI_TermSetTextColor(COLORS_YELLOW);
+                            RPI_TermPrintAt(238, nTimer, "#");
+                            RPI_TermSetTextColor(color);
+
                             DataMemBarrier();
 
                             // and remove it afterwards
@@ -221,34 +247,29 @@ void __attribute__((interrupt("IRQ"))) interrupt_vector(void) {
                     }
                 }
 
+                color = RPI_TermGetTextColor();
+                RPI_TermSetTextColor(COLORS_GRAY);
+                //RPI_TermPutC('.');
+                RPI_TermSetTextColor(color);
 
                 // Flip the LED every 100 timers
                 jiffies++;
-                if (jiffies == 25) {
+                if (jiffies >= 25) {
                     jiffies = 0;
 
-                    /*color = RPI_TermGetTextColor();
-                    RPI_TermSetTextColor(COLORS_YELLOW);*/
+                    color = RPI_TermGetTextColor();
+                    RPI_TermSetTextColor(COLORS_YELLOW);
                     if (lit) {
                         LED_OFF();
                         lit = 0;
-                        x = RPI_TermGetCursorX();
-                        y = RPI_TermGetCursorY();
-                        RPI_TermSetCursorPos(239, nIRQ);
-                        printf("_");
-                        RPI_TermSetCursorPos(0, 0);
-                        printf("   ");
-                        RPI_TermSetCursorPos(x, y);
+                        RPI_TermPrintAt(239, nIRQ, "_");
+                        RPI_TermPrintAt(0, 0, "   ");
                     } else {
                         LED_ON();
                         lit = 1;
-                        x = RPI_TermGetCursorX();
-                        y = RPI_TermGetCursorY();
-                        RPI_TermSetCursorPos(239, nIRQ);
-                        printf("@");
-                        RPI_TermSetCursorPos(x, y);
+                        RPI_TermPrintAt(239, nIRQ, "@");
                     }
-                    //RPI_TermSetTextColor(color);
+                    RPI_TermSetTextColor(color);
                 }
             }
         }

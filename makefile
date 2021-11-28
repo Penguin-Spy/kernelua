@@ -43,9 +43,10 @@ $(OBJDIR)/%.obj: $(SRCDIR)/%.S
 
 # Link ELF executable
 $(BINDIR)/kernel.elf: $(OBJFILES) $(LIBFILES)
-	@echo [Linking]: $^ -^> $@
+	@echo [Link]: $^ -^> $@
 	$(ENSUREDIR)
 	@$(TOOLCHAIN)-gcc $(C_INCLUDES) $(C_DEFINES) $(C_FLAGS) $^ -o $(BINDIR)/kernel.elf
+#	@$(TOOLCHAIN)-objdump --source-comment=# bin/kernel.elf > kernel.disasm
 
 # Extract the kernel image
 $(BINDIR)/kernel.img: $(BINDIR)/kernel.elf
@@ -53,7 +54,6 @@ $(BINDIR)/kernel.img: $(BINDIR)/kernel.elf
 	$(ENSUREDIR)
 	@$(TOOLCHAIN)-objcopy $(BINDIR)/kernel.elf -O binary $(BINDIR)/kernel.img
 	@echo Done! Output is in $@
-#$(TOOLCHAIN)-objdump.exe -l -S -D ./kernel.armc-016.rpi3bp
 
 .PHONY: clean
 clean:

@@ -211,6 +211,7 @@ _setup_interrupt_table:
 
     // If main does return for some reason, just catch it and stay here.
     // This is also where the other unused cores branch to (we only run on core 0).
+    dsb
 _inf_loop:
     wfi // give the cores some zzz's (idk if this actually does anything on the RPI hardware)
     b _inf_loop

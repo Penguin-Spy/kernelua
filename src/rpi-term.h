@@ -42,4 +42,7 @@ int RPI_TermGetBackgroundColor();
 
 int RPI_TermPutC(char glyph);
 
+int RPI_TermPrintAt(int x, int y, char* string);
+int RPI_TermPrintRegister(uint64_t reg);
+
 #endif
