@@ -77,9 +77,16 @@ void ConnectInterrupt(unsigned nIRQ, TInterruptHandler* pHandler, void* pParam) 
 // "set power state" to "on", wait until completed
 // returns 0 on failure
 int SetPowerStateOn(unsigned nDeviceId) {
+    int old_fg = RPI_TermGetTextColor();
+    RPI_TermSetTextColor(COLORS_PINK);
+    printf("TURNING ON DEVICE %u\n", nDeviceId);
+
     RPI_PropertyInit(); //                             on, wait
     RPI_PropertyAddTag(TAG_SET_POWER_STATE, nDeviceId, 0x03);
     RPI_PropertyProcess();
+
+    printf("TURNED ON DEVICE!\n");
+    RPI_TermSetTextColor(old_fg);
 }
 
 // "get board MAC address"
@@ -108,7 +115,6 @@ int GetMACAddress(unsigned char Buffer[6]) {
     Buffer[5] = mp->data.buffer_32[5];
 
 
-    RPI_TermSetTextColor(COLORS_PINK);
     printf("GOT MAC ADDRESS!\n");
     RPI_TermSetTextColor(old_fg);
 
