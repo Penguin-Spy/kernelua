@@ -1,8 +1,9 @@
 # Kernelua
-> Pronounced "`Kernel-Lua`" (as one word), capitalized as a noun. `Lua` by itself has a capital `L`: http://www.lua.org/about.html#name.
+> Pronounced "`Kernel-lua`" (as one word), capitalized as a noun. `Lua` by itself has a capital `L`: http://www.lua.org/about.html#name.
 
 Kernelua is a Rasberry Pi kernel written in C that allows running Lua as the operating system of a device. The primary goal is to run ComputerCraft's CraftOS on real hardware (ideally in a Pocket Computer enclosure).  
-This project is based on the valvers.com tutorial, check it out: https://www.valvers.com/open-software/raspberry-pi/bare-metal-programming-in-c-part-1.
+This project is based on the valvers.com tutorial, check it out: https://www.valvers.com/open-software/raspberry-pi/bare-metal-programming-in-c-part-1.  
+It also makes use of USPi, a bare-metal USB driver for the RPi 1-3: https://github.com/rsta2/uspi (very cool).
 
 # Installing
 Kernelua is not ready for production use yet, so to run it you must create a bootable SD card image manually.  
