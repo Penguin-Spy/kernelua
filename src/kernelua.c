@@ -105,7 +105,7 @@ void kernel_main(unsigned int r0, unsigned int r1, unsigned int atags) {
 
     if (fb[0] != 0x000000) {
         RPI_TermSetTextColor(COLORS_RED);
-        printf("CAUGHT SOFT RESET");
+        printf("!!CAUGHT SOFT RESET!!");
         return; // interrupts still happen, this doesn't properly halt
     }
 
@@ -306,6 +306,7 @@ pqrstuvwxyz{|}~\x7F\n\
 
     //if(result == OK) {
     RPI_TermSetTextColor(COLORS_ORANGE);
+
     //}
 
     /*while (1) {
@@ -315,3 +316,5 @@ pqrstuvwxyz{|}~\x7F\n\
         //LED_ON();
     }*/
 }
+
+

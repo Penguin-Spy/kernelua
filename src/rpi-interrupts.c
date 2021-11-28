@@ -263,7 +263,7 @@ void __attribute__((interrupt("IRQ"))) interrupt_vector(void) {
                         LED_OFF();
                         lit = 0;
                         RPI_TermPrintAt(239, nIRQ, "_");
-                        RPI_TermPrintAt(0, 0, "   ");
+                        RPI_TermPrintAt(0, 0, " ");
                     } else {
                         LED_ON();
                         lit = 1;

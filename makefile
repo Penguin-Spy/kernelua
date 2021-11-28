@@ -16,7 +16,7 @@ RM         = rm -f
 RMDIR      = rm -rf $1
 MKDIR      = mkdir -p $1
 endif
-ENSUREDIR  = @$(call MKDIR,$(dir $@))
+ENSUREDIR  = $(call MKDIR,$(dir $@))
 
 # set for your model (check the tutorial i followed's cmake system to figure out this)
 # yea this sucks, ill fix later™
@@ -27,31 +27,34 @@ C_INCLUDES = -I$(SRCDIR)/inc -I$(SRCDIR)
 C_FLAGS   = -mfpu=crypto-neon-fp-armv8 -mfloat-abi=hard -march=armv8-a+crc -mtune=cortex-a53 -O2 -g -nostartfiles
 ASM_FLAGS = -mfpu=crypto-neon-fp-armv8 -mfloat-abi=hard -march=armv8-a+crc -mtune=cortex-a53
 
+# end of stuff that needs to be set per-model
+
+
 all: $(BINDIR)/kernel.img
 
 # Build C object
 $(OBJDIR)/%.obj: $(SRCDIR)/%.c
 	@echo [C obj]:   $^ -^> $@
-	$(ENSUREDIR)
+	@$(ENSUREDIR)
 	@$(TOOLCHAIN)-gcc $(C_INCLUDES) $(C_DEFINES) $(C_FLAGS) -o $@ -c $^
 
 # Build ASM object
 $(OBJDIR)/%.obj: $(SRCDIR)/%.S
 	@echo [ASM obj]: $^ -^> $@
-	$(ENSUREDIR)
+	@$(ENSUREDIR)
 	@$(TOOLCHAIN)-gcc $(C_INCLUDES) $(C_DEFINES) $(ASM_FLAGS) -o $@ -c $^
 
 # Link ELF executable
 $(BINDIR)/kernel.elf: $(OBJFILES) $(LIBFILES)
 	@echo [Link]: $^ -^> $@
-	$(ENSUREDIR)
+	@$(ENSUREDIR)
 	@$(TOOLCHAIN)-gcc $(C_INCLUDES) $(C_DEFINES) $(C_FLAGS) $^ -o $(BINDIR)/kernel.elf
 #	@$(TOOLCHAIN)-objdump --source-comment=# bin/kernel.elf > kernel.disasm
 
 # Extract the kernel image
 $(BINDIR)/kernel.img: $(BINDIR)/kernel.elf
 	@echo [Extract]: $^ -^> $@
-	$(ENSUREDIR)
+	@$(ENSUREDIR)
 	@$(TOOLCHAIN)-objcopy $(BINDIR)/kernel.elf -O binary $(BINDIR)/kernel.img
 	@echo Done! Output is in $@
 
