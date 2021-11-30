@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdarg.h>
 
 #include "rpi-term.h"
 #include "font.h"
@@ -98,23 +99,71 @@ int RPI_TermPutC(char glyph) {
             if (cursor_y * FONT_HEIGHT >= fb_height) {
                 cursor_y = 0;	// good enough for now, should scroll screen but :how:, would need buffer for storing printed chars probably
                 // or literally move entire framebuffer up? only usable in text-only mode
+
+                // this is bad and temporary
+                cursor_x++;
+                if (cursor_x * FONT_WIDTH >= fb_width) {
+                    cursor_x = 0;
+                }
             }
             break;
         }
     }
 }
 
-int RPI_TermPrintAt(int x, int y, char* string) {
+void RPI_TermPrintAt(int x, int y, const char* string, ...) {
+    va_list vl;
+    va_start(vl, string);
+
     int old_x = RPI_TermGetCursorX();
     int old_y = RPI_TermGetCursorY();
     RPI_TermSetCursorPos(x, y);
-    printf(string);
+
+    vprintf(string, vl);
+
     RPI_TermSetCursorPos(old_x, old_y);
 }
 
-int RPI_TermPrintRegister(uint64_t reg) {
-    RPI_TermPutC(reg & 0xFF000000);
-    RPI_TermPutC(reg & 0x00FF0000);
-    RPI_TermPutC(reg & 0x0000FF00);
-    RPI_TermPutC(reg & 0x000000FF);
+void RPI_TermPrintDyed(int textColor, int backgroundColor, const char* string, ...) {
+    va_list vl;
+    va_start(vl, string);
+
+    int old_textColor = RPI_TermGetTextColor();
+    int old_backgroundColor = RPI_TermGetBackgroundColor();
+    RPI_TermSetTextColor(textColor);
+    RPI_TermSetBackgroundColor(backgroundColor);
+
+    vprintf(string, vl);
+
+    RPI_TermSetTextColor(old_textColor);
+    RPI_TermSetBackgroundColor(old_backgroundColor);
+}
+
+void RPI_TermPrintAtDyed(int x, int y, int textColor, int backgroundColor, const char* string, ...) {
+    va_list vl;
+    va_start(vl, string);
+
+    int old_textColor = RPI_TermGetTextColor();
+    int old_backgroundColor = RPI_TermGetBackgroundColor();
+    RPI_TermSetTextColor(textColor);
+    RPI_TermSetBackgroundColor(backgroundColor);
+
+    int old_x = RPI_TermGetCursorX();
+    int old_y = RPI_TermGetCursorY();
+    RPI_TermSetCursorPos(x, y);
+
+    vprintf(string, vl);
+
+    RPI_TermSetCursorPos(old_x, old_y);
+
+    RPI_TermSetTextColor(old_textColor);
+    RPI_TermSetBackgroundColor(old_backgroundColor);
+}
+
+
+void RPI_TermPrintRegister(uint64_t reg) {
+    printf("0x%0X", reg & 0xFF000000);
+    printf("%0X", reg & 0x00FF0000);
+    printf("%0X", reg & 0x0000FF00);
+    printf("%0X", reg & 0x000000FF);
 }
