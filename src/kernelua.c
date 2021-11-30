@@ -21,7 +21,19 @@
 
 #define TIMER_HERTZ 100 /* Default hertz for libuspi (can be changed, but best to leave at default for now) */
 
+const char* rotor = "\xC4\\\xB3/";
+
 extern void _enable_interrupts(void);
+
+void keyPressed(const char* string) {
+    printf(string);
+}
+
+void shutdown() {
+    printf("yeah not yet srry");
+    while (1) {}
+}
+
 
 /** Main function - we'll never return from here */
 void kernel_main(unsigned int r0, unsigned int r1, unsigned int atags) {
@@ -304,17 +316,44 @@ pqrstuvwxyz{|}~\x7F\n\
     //printf("What happens if I try to use unicode? 🤔 💾 📧\n\n");
     printf("\nUSPiInitialize() result: %.d\n", result);
 
-    //if(result == OK) {
-    RPI_TermSetTextColor(COLORS_ORANGE);
+    if (result != 0) {
+        RPI_TermSetTextColor(COLORS_ORANGE);
+    } else {
+        RPI_TermSetTextColor(COLORS_LIME);
+    }
 
-    //}
+    if (USPiKeyboardAvailable()) {
+        printf("Keyboard detected!\n");
+        USPiKeyboardRegisterKeyPressedHandler(keyPressed);
+        USPiKeyboardRegisterShutdownHandler(shutdown);
+        printf("try typing?\n");
+        RPI_TermSetTextColor(COLORS_WHITE);
 
-    /*while (1) {
+        while (1) {
+            USPiKeyboardUpdateLEDs();
+        }
+    } else {
+        printf("No keyboard detected!\nPlug in a keyboard and reboot the device.  ");
+
+        int x = RPI_TermGetCursorX();
+        int y = RPI_TermGetCursorY();
+        int i = 0;
+        while (1) {
+            RPI_TermSetCursorPos(x, y);
+            RPI_TermPutC(rotor[i++]);
+            if (i > 3) {
+                i = 0;
+            }
+
+            RPI_WaitMicroSeconds(250000);
+        }
+    }
+
+    /*while(1) {
         RPI_WaitMicroSeconds(50000);
         LED_OFF();
-        //RPI_WaitMicroSeconds(5000);
-        //LED_ON();
+        RPI_WaitMicroSeconds(5000);
+        LED_ON();
     }*/
+
 }
-
-

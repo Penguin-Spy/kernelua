@@ -29,12 +29,12 @@ unsigned StartKernelTimer(
     unsigned nHzDelay,    // in HZ units (see "system configuration" above)
     TKernelTimerHandler* pHandler,
     void* pParam, void* pContext) {	// handed over to the timer handler
-    printf("StartKernelTimer(%u, %x, %x, %x)\n", nHzDelay, pHandler, pParam, pContext);
+    RPI_TermPrintDyed(COLORS_PINK, COLORS_BLACK, "StartKernelTimer(%u, %x, %x, %x)\n", nHzDelay, pHandler, pParam, pContext);
     return 0;
 }
 
 void CancelKernelTimer(unsigned hTimer) {
-    printf("CancelKernelTimer(%u)\n", hTimer);
+    RPI_TermPrintDyed(COLORS_PINK, COLORS_BLACK, "CancelKernelTimer(%u)\n", hTimer);
     return;
 }
 
@@ -66,7 +66,7 @@ void ConnectInterrupt(unsigned nIRQ, TInterruptHandler* pHandler, void* pParam) 
             IRQHandlers[nIRQ](IRQParams[nIRQ]);
         }
     }*/
-    printf("ConnectInterrupt(%u, %x, %x)\n", nIRQ, pHandler, pParam);
+    RPI_TermPrintDyed(COLORS_PINK, COLORS_BLACK, "Connecting interrupt #%u with handler 0x%0X & param 0x%0X\n", nIRQ, pHandler, pParam);
     ConnectIRQHandler(nIRQ, pHandler, pParam);
     return;
 }
@@ -77,26 +77,19 @@ void ConnectInterrupt(unsigned nIRQ, TInterruptHandler* pHandler, void* pParam) 
 // "set power state" to "on", wait until completed
 // returns 0 on failure
 int SetPowerStateOn(unsigned nDeviceId) {
-    int old_fg = RPI_TermGetTextColor();
-    RPI_TermSetTextColor(COLORS_PINK);
-    printf("TURNING ON DEVICE %u\n", nDeviceId);
+    RPI_TermPrintDyed(COLORS_PINK, COLORS_BLACK, "TURNING ON DEVICE %u\n", nDeviceId);
 
     RPI_PropertyInit(); //                             on, wait
     RPI_PropertyAddTag(TAG_SET_POWER_STATE, nDeviceId, 0x03);
     RPI_PropertyProcess();
 
-    printf("TURNED ON DEVICE!\n");
-    RPI_TermSetTextColor(old_fg);
+    RPI_TermPrintDyed(COLORS_PINK, COLORS_BLACK, "TURNED ON DEVICE!\n");
 }
 
 // "get board MAC address"
 // returns 0 on failure, 1 on success
 int GetMACAddress(unsigned char Buffer[6]) {
-
-    int old_fg = RPI_TermGetTextColor();
-    RPI_TermSetTextColor(COLORS_PINK);
-    printf("GETTING MAC ADDRESS\n");
-
+    RPI_TermPrintDyed(COLORS_PINK, COLORS_BLACK, "GETTING MAC ADDRESS\n");
 
     rpi_mailbox_property_t* mp;
 
@@ -105,19 +98,15 @@ int GetMACAddress(unsigned char Buffer[6]) {
     RPI_PropertyProcess();
 
     mp = RPI_PropertyGet(TAG_GET_BOARD_MAC_ADDRESS);
-
-    // these might need to be buffer_8 (the code from the tutorial which displays properly used buffer_8)
-    Buffer[0] = mp->data.buffer_32[0];
-    Buffer[1] = mp->data.buffer_32[1];
-    Buffer[2] = mp->data.buffer_32[2];
-    Buffer[3] = mp->data.buffer_32[3];
-    Buffer[4] = mp->data.buffer_32[4];
-    Buffer[5] = mp->data.buffer_32[5];
+    Buffer[0] = mp->data.buffer_8[0];
+    Buffer[1] = mp->data.buffer_8[1];
+    Buffer[2] = mp->data.buffer_8[2];
+    Buffer[3] = mp->data.buffer_8[3];
+    Buffer[4] = mp->data.buffer_8[4];
+    Buffer[5] = mp->data.buffer_8[5];
 
 
-    printf("GOT MAC ADDRESS!\n");
-    RPI_TermSetTextColor(old_fg);
-
+    RPI_TermPrintDyed(COLORS_PINK, COLORS_BLACK, "GOT MAC ADDRESS\n");
     return 1;
 }
 
@@ -139,26 +128,20 @@ void LogWrite(const char* pSource,		// short name of module
     switch (Severity) {
         case LOG_ERROR:
             RPI_TermSetTextColor(COLORS_RED);
-            printf("[%s]: ", pSource);
-            vprintf(pMessage, vl);
             break;
         case LOG_WARNING:
             RPI_TermSetTextColor(COLORS_ORANGE);
-            printf("[%s]: ", pSource);
-            vprintf(pMessage, vl);
             break;
         case LOG_DEBUG:
             RPI_TermSetTextColor(COLORS_PURPLE);
-            printf("[%s]: ", pSource);
-            vprintf(pMessage, vl);
             break;
         case LOG_NOTICE:
         default:            // default to white if unknown log level
             RPI_TermSetTextColor(COLORS_WHITE);
-            printf("[%s]: ", pSource);
-            vprintf(pMessage, vl);
             break;
     }
+    printf("[%s]: ", pSource);
+    vprintf(pMessage, vl);
     printf("\n");
 
     RPI_TermSetTextColor(old_color);
@@ -170,40 +153,30 @@ void LogWrite(const char* pSource,		// short name of module
 
 // display "assertion failed" message and halt
 void uspi_assertion_failed(const char* pExpr, const char* pFile, unsigned nLine) {
-    int old_fg = RPI_TermGetTextColor();
+    /*int old_fg = RPI_TermGetTextColor();
     int old_bg = RPI_TermGetBackgroundColor();
 
     RPI_TermSetTextColor(COLORS_RED);
     RPI_TermSetBackgroundColor(COLORS_BLACK);
-    /*int x = RPI_TermGetCursorX();
+    int x = RPI_TermGetCursorX();
     int y = RPI_TermGetCursorY();*/
-    printf("<ASSERT_FAIL>: %s, in %s:%i\n", pExpr, pFile, nLine);
-    //RPI_TermSetCursorPos(x, y);
+    RPI_TermPrintDyed(COLORS_RED, COLORS_BLACK, "<ASSERT_FAIL>: %s, in %s:%i\n", pExpr, pFile, nLine);
+    /*RPI_TermSetCursorPos(x, y);
 
     RPI_TermSetTextColor(old_fg);
-    RPI_TermSetBackgroundColor(old_bg);
+    RPI_TermSetBackgroundColor(old_bg);*/
+
+    // oh yeah it said to halt lol
+    while (1) {}
 }
 
 // display hex dump (pSource can be 0)
-void DebugHexdump(const void* pBuffer, unsigned nBufLen, const char* pSource /* = 0 */) {
-    int old_fg = RPI_TermGetTextColor();
-    int old_bg = RPI_TermGetBackgroundColor();
-
-    RPI_TermSetTextColor(COLORS_PINK);
-    RPI_TermSetBackgroundColor(COLORS_BLACK);
+void DebugHexdump(const int* pBuffer, unsigned nBufLen, const char* pSource /* = 0 */) {
     if (pSource) {
-        printf("[%s]: ", pSource);
+        RPI_TermPrintDyed(COLORS_PINK, COLORS_BLACK, "[%s]: Hex Dump:\n", pSource);
     }
 
-    printf("%.*s\n", nBufLen, pBuffer);
-
-    RPI_TermSetTextColor(old_fg);
-    RPI_TermSetBackgroundColor(old_bg);
+    for (int i = 0; i < nBufLen, i++;) {
+        RPI_TermPrintDyed(COLORS_PINK, COLORS_BLACK, "%0X ", pBuffer[i]);
+    }
 }
-
-
-
-
-
-
-

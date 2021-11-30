@@ -108,14 +108,6 @@ void /*__attribute__((interrupt("ABORT")))*/ data_abort_vector(void) {
 }
 
 
-/**
-    @brief The IRQ Interrupt handler
-
-    This handler is run every time an interrupt source is triggered. It's
-    up to the handler to determine the source of the interrupt and most
-    importantly clear the interrupt flag so that the interrupt won't
-    immediately put us back into the start of the handler again.
-*/
 
 #define ARM_IRQS_PER_REG    32
 
@@ -156,120 +148,142 @@ static void* TimerContexts[TIMER_LINES] = { 0 };
 //#define SaveContext() __asm volatile ("SAVE_CONTEXT")
 //#define RestoreContext() __asm volatile ("RESTORE_CONTEXT")
 
+// enable logging all interrupt events to the screen
+#define IRQ_PRINT 0
+
+// enable the IRQ display on the right edge of the screen
+#define IRQ_DISPLAY 1
+/* KEY:
+ *  ? = checking if this IRQ pending (beginning of for loop)
+ *  ! = this IRQ is pending
+ *  @ = this IRQ/timer has a handler
+ *  # = this IRQ/timer handler was called & returned
+ *  - = this timer handler was decremented (or LED jiffy toggler turned off)
+ *  { } = prints '{' when entering the interrupt handler, and '}' when the interrupt is finished
+ *
+ *  COLOR_LIGHTBLUE is IRQ handlers
+ *  COLOR_YELLOW is timer handlers
+ *  COLOR_BLUE is the timer LED jiffy toggler
+ *
+ *  Y coordinate is the IRQ/timer number
+ */
+
+ /**
+     @brief The IRQ Interrupt handler
+
+     This handler is run every time an interrupt source is triggered. It's
+     up to the handler to determine the source of the interrupt and most
+     importantly clear the interrupt flag so that the interrupt won't
+     immediately put us back into the start of the handler again.
+ */
 void __attribute__((interrupt("IRQ"))) interrupt_vector(void) {
-    //SaveContext();
 
     DisableInterrupts();
     DataMemBarrier();
 
+    // LED tracking stuff
     static int lit = 0;
     static int jiffies = 0;
-    static int x = 237, y;
-    static int color;
 
-    RPI_TermPrintAt(239, IRQ_LINES, "{");
+#if IRQ_DISPLAY == 1
+    RPI_TermPrintAtDyed(239, IRQ_LINES, COLORS_LIGHTBLUE, COLORS_BLACK, "{");
+#endif
 
     rpi_irq_controller_t* rpiIRQController = (rpi_irq_controller_t*)RPI_INTERRUPT_CONTROLLER_BASE;
 
     for (int nIRQ = 0; nIRQ < IRQ_LINES; nIRQ++) {
-        RPI_TermPrintAt(239, nIRQ, "?");
+
+#if IRQ_DISPLAY == 1
+        RPI_TermPrintAtDyed(239, nIRQ, COLORS_LIGHTBLUE, COLORS_BLACK, "?");
+#endif
 
         DataMemBarrier();
         if (ARM_IC_IRQ_PENDING(nIRQ) & ARM_IRQ_MASK(nIRQ)) {
             // this irq is pending
-            color = RPI_TermGetTextColor();
-            RPI_TermSetTextColor(COLORS_LIGHTGRAY);
-            //printf("IRQ %i is pending. ", nIRQ);
-            RPI_TermSetTextColor(color);
+#if IRQ_PRINT == 1
+            RPI_TermPrintDyed(COLORS_LIGHTGRAY, COLORS_BLACK, "IRQ %i is pending. ", nIRQ);
+#endif
 
-            RPI_TermPrintAt(239, nIRQ, "!");
+#if IRQ_DISPLAY == 1
+            RPI_TermPrintAtDyed(239, nIRQ, COLORS_LIGHTBLUE, COLORS_BLACK, "!");
+#endif
 
             TIRQHandler* pHandler = IRQHandlers[nIRQ];
             if (pHandler) {
-                color = RPI_TermGetTextColor();
-                RPI_TermSetTextColor(COLORS_CYAN);
-                //printf("IRQ %u using handler %x with param %x", nIRQ, pHandler, IRQParams[nIRQ]);
-                RPI_TermSetTextColor(color);
+#if IRQ_DISPLAY == 1
+                RPI_TermPrintAtDyed(239, nIRQ, COLORS_LIGHTBLUE, COLORS_BLACK, "@");
+#endif
+#if IRQ_PRINT == 1
+                RPI_TermPrintDyed(COLORS_LIGHTBLUE, COLORS_BLACK, "IRQ %u using handler %x with param %x", nIRQ, pHandler, IRQParams[nIRQ]);
+#endif
                 DataMemBarrier();
                 DataSyncBarrier();
                 (*pHandler) (IRQParams[nIRQ]);
-                RPI_TermPrintAt(239, nIRQ, "#");
-                DataMemBarrier();
+#if IRQ_DISPLAY == 1
+                RPI_TermPrintAtDyed(239, nIRQ, COLORS_LIGHTBLUE, COLORS_BLACK, "#");
+#endif
             }
 
             if (nIRQ == 64) {
-                color = RPI_TermGetTextColor();
-                RPI_TermSetTextColor(COLORS_GRAY);
-                //printf("Using timer handler");
-                RPI_TermSetTextColor(color);
+#if IRQ_PRINT == 1
+                RPI_TermPrintDyed(COLORS_GRAY, COLORS_BLACK, "Using timer handler");
+#endif
                 RPI_GetArmTimer()->IRQClear = 1;
-
                 // Go through all timers, checking if they have a handler registered
                 for (TKernelTimerHandle nTimer = 0; nTimer < TIMER_LINES; nTimer++) {
-
-                    color = RPI_TermGetTextColor();
-                    RPI_TermSetTextColor(COLORS_YELLOW);
-                    RPI_TermPrintAt(238, nTimer, "?");
-                    RPI_TermSetTextColor(color);
-
+#if IRQ_DISPLAY == 1
+                    RPI_TermPrintAtDyed(238, nTimer, COLORS_YELLOW, COLORS_BLACK, "?");
+#endif
                     if (TimerHandlers[nTimer] != 0) {   // If there's a handler
                         if (TimerDelays[nTimer] > 0) {  // If there's still time left,
                             TimerDelays[nTimer] -= 1;   // decrement the time left by 1 (/100 Hz)
-
-                            color = RPI_TermGetTextColor();
-                            RPI_TermSetTextColor(COLORS_YELLOW);
-                            RPI_TermPrintAt(238, nTimer, "_");
-                            RPI_TermSetTextColor(color);
+#if IRQ_DISPLAY == 1
+                            RPI_TermPrintAtDyed(238, nTimer, COLORS_YELLOW, COLORS_BLACK, "-");
+#endif
 
                         } else {    // Otherwise,
+#if IRQ_DISPLAY == 1
+                            RPI_TermPrintAtDyed(239, nIRQ, COLORS_YELLOW, COLORS_BLACK, "@");
+#endif
                             // Call the handler
                             TKernelTimerHandler* pHandler = TimerHandlers[nTimer];
-
-                            color = RPI_TermGetTextColor();
-                            RPI_TermSetTextColor(COLORS_LIGHTBLUE);
-                            //printf("Timer %u using handler %x with context %x", nTimer, pHandler, TimerContexts[nTimer]);
-                            RPI_TermSetTextColor(color);
-
+#if IRQ_PRINT == 1
+                            RPI_TermPrintDyed(COLORS_YELLOW, COLORS_BLACK, "Timer %u using handler %x with context %x", nTimer, pHandler, TimerContexts[nTimer]);
+#endif
                             DataMemBarrier();
                             DataSyncBarrier();
                             (*pHandler) (nTimer, TimerParams[nTimer], TimerContexts[nTimer]);
-
-                            color = RPI_TermGetTextColor();
-                            RPI_TermSetTextColor(COLORS_YELLOW);
-                            RPI_TermPrintAt(238, nTimer, "#");
-                            RPI_TermSetTextColor(color);
-
-                            DataMemBarrier();
-
+#if IRQ_DISPLAY == 1
+                            RPI_TermPrintAtDyed(238, nTimer, COLORS_YELLOW, COLORS_BLACK, "#");
+#endif
                             // and remove it afterwards
                             TimerHandlers[nTimer] = 0;
                         }
                     }
                 }
 
-                color = RPI_TermGetTextColor();
-                RPI_TermSetTextColor(COLORS_GRAY);
-                //RPI_TermPutC('.');
-                RPI_TermSetTextColor(color);
+#if IRQ_PRINT == 1
+                RPI_TermPrintDyed(COLORS_GRAY, COLORS_BLACK, ".");
+#endif
 
-                // Flip the LED every 100 timers
+                // Flip the LED every 25 timers
                 jiffies++;
                 if (jiffies >= 25) {
                     jiffies = 0;
 
-                    color = RPI_TermGetTextColor();
-                    RPI_TermSetTextColor(COLORS_YELLOW);
                     if (lit) {
                         LED_OFF();
                         lit = 0;
-                        RPI_TermPrintAt(239, nIRQ, "_");
-                        RPI_TermPrintAt(0, 0, " ");
+#if IRQ_DISPLAY == 1
+                        RPI_TermPrintAtDyed(239, nIRQ, COLORS_BLUE, COLORS_BLACK, "-");
+#endif
                     } else {
                         LED_ON();
                         lit = 1;
-                        RPI_TermPrintAt(239, nIRQ, "@");
+#if IRQ_DISPLAY == 1
+                        RPI_TermPrintAtDyed(239, nIRQ, COLORS_BLUE, COLORS_BLACK, "@");
+#endif
                     }
-                    RPI_TermSetTextColor(color);
                 }
             }
         }
@@ -307,11 +321,9 @@ void __attribute__((interrupt("IRQ"))) interrupt_vector(void) {
            }
        }*/
 
-    x = RPI_TermGetCursorX();
-    y = RPI_TermGetCursorY();
-    RPI_TermSetCursorPos(239, IRQ_LINES);
-    RPI_TermPutC('}');
-    RPI_TermSetCursorPos(x, y);
+#if IRQ_DISPLAY == 1
+    RPI_TermPrintAtDyed(239, IRQ_LINES, COLORS_LIGHTBLUE, COLORS_BLACK, "}");
+#endif
 
     DataMemBarrier();
     DataSyncBarrier();
@@ -329,7 +341,7 @@ void __attribute__((interrupt("IRQ"))) interrupt_vector(void) {
 
 void ConnectIRQHandler(unsigned nIRQ, TInterruptHandler* pHandler, void* pParam) {
     rpi_irq_controller_t* rpiIRQController = (rpi_irq_controller_t*)RPI_INTERRUPT_CONTROLLER_BASE;
-    printf("enabling irq %u (group ", nIRQ);
+    printf("Enabling IRQ %u (group ", nIRQ);
 
     IRQHandlers[nIRQ] = pHandler;
     IRQParams[nIRQ] = pParam;
@@ -368,11 +380,11 @@ void ConnectTimerHandler(
     }
     // No empty timer lines
     if (nTimer == TIMER_LINES) {
-        printf("OUT OF TIMER LINES UH OH\nTimer handler %x not registered!", pHandler);
+        printf("OUT OF TIMER LINES UH OH\nTimer handler 0x%0X not registered!", pHandler);
         return;
     }
 
-    printf("connecting timer %i with delay %u to call handler %x with param %x and context %x", nTimer, nHzDelay, pHandler, pParam, pContext);
+    printf("connecting timer %i with delay %u to call handler 0x%0X with param 0x%0X and context 0x%0X", nTimer, nHzDelay, pHandler, pParam, pContext);
     TimerDelays[nTimer] = nHzDelay;
     TimerHandlers[nTimer] = pHandler;
     TimerParams[nTimer] = pParam;
