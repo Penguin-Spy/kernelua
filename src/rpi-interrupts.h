@@ -20,5 +20,6 @@
 extern volatile int uptime;
 extern void RPI_EnableARMTimerInterrupt(void);
 void ConnectIRQHandler(unsigned nIRQ, TInterruptHandler* pHandler, void* pParam);
+int ConnectTimerHandler(unsigned nHzDelay, TKernelTimerHandler* pHandler, void* pParam, void* pContext);
 
 #endif

@@ -98,13 +98,7 @@ int RPI_TermPutC(char glyph) {
             }
             if (cursor_y * FONT_HEIGHT >= fb_height) {
                 cursor_y = 0;	// good enough for now, should scroll screen but :how:, would need buffer for storing printed chars probably
-                // or literally move entire framebuffer up? only usable in text-only mode
-
-                // this is bad and temporary
-                cursor_x++;
-                if (cursor_x * FONT_WIDTH >= fb_width) {
-                    cursor_x = 0;
-                }
+                // or literally copy theg entire framebuffer up? only usable in text-only mode
             }
             break;
         }

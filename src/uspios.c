@@ -29,12 +29,14 @@ unsigned StartKernelTimer(
     unsigned nHzDelay,    // in HZ units (see "system configuration" above)
     TKernelTimerHandler* pHandler,
     void* pParam, void* pContext) {	// handed over to the timer handler
-    RPI_TermPrintDyed(COLORS_PINK, COLORS_BLACK, "StartKernelTimer(%u, %x, %x, %x)\n", nHzDelay, pHandler, pParam, pContext);
-    return 0;
+    //RPI_TermPrintDyed(COLORS_PINK, COLORS_BLACK, "Starting Kernel timer with delay %uhz, handler 0x%0X, param 0x%0X, & context 0x%0X\n", nHzDelay, pHandler, pParam, pContext);
+
+    // turns out you actually need to call the function to connect the timer handler...
+    return ConnectTimerHandler(nHzDelay, pHandler, pParam, pContext);
 }
 
 void CancelKernelTimer(unsigned hTimer) {
-    RPI_TermPrintDyed(COLORS_PINK, COLORS_BLACK, "CancelKernelTimer(%u)\n", hTimer);
+    RPI_TermPrintDyed(COLORS_BLACK, COLORS_RED, "CancelKernelTimer(%u)\n", hTimer);
     return;
 }
 
@@ -160,7 +162,7 @@ void uspi_assertion_failed(const char* pExpr, const char* pFile, unsigned nLine)
     RPI_TermSetBackgroundColor(COLORS_BLACK);
     int x = RPI_TermGetCursorX();
     int y = RPI_TermGetCursorY();*/
-    RPI_TermPrintDyed(COLORS_RED, COLORS_BLACK, "<ASSERT_FAIL>: %s, in %s:%i\n", pExpr, pFile, nLine);
+    RPI_TermPrintDyed(COLORS_BLACK, COLORS_RED, "<ASSERT_FAIL>: %s, in %s:%i\n", pExpr, pFile, nLine);
     /*RPI_TermSetCursorPos(x, y);
 
     RPI_TermSetTextColor(old_fg);

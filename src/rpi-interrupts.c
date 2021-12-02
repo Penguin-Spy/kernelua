@@ -151,6 +151,9 @@ static void* TimerContexts[TIMER_LINES] = { 0 };
 // enable logging all interrupt events to the screen
 #define IRQ_PRINT 0
 
+// enable logging all timer trigger events to the screen
+#define TIMER_PRINT 0
+
 // enable the IRQ display on the right edge of the screen
 #define IRQ_DISPLAY 1
 /* KEY:
@@ -247,12 +250,15 @@ void __attribute__((interrupt("IRQ"))) interrupt_vector(void) {
 #endif
                             // Call the handler
                             TKernelTimerHandler* pHandler = TimerHandlers[nTimer];
-#if IRQ_PRINT == 1
-                            RPI_TermPrintDyed(COLORS_YELLOW, COLORS_BLACK, "Timer %u using handler %x with context %x", nTimer, pHandler, TimerContexts[nTimer]);
+#if TIMER_PRINT == 1
+                            RPI_TermPrintDyed(COLORS_YELLOW, COLORS_BLACK, "Timer %u using handler 0x%0X with context 0x%0X...", nTimer, pHandler, TimerContexts[nTimer]);
 #endif
                             DataMemBarrier();
                             DataSyncBarrier();
                             (*pHandler) (nTimer, TimerParams[nTimer], TimerContexts[nTimer]);
+#if TIMER_PRINT == 1
+                            RPI_TermPrintDyed(COLORS_YELLOW, COLORS_BLACK, " finished.\n                                                              \n");
+#endif
 #if IRQ_DISPLAY == 1
                             RPI_TermPrintAtDyed(238, nTimer, COLORS_YELLOW, COLORS_BLACK, "#");
 #endif
@@ -366,7 +372,7 @@ void ConnectIRQHandler(unsigned nIRQ, TInterruptHandler* pHandler, void* pParam)
     }
 }
 
-void ConnectTimerHandler(
+int ConnectTimerHandler(
     unsigned nHzDelay,    // in HZ units (see "system configuration" above)
     TKernelTimerHandler* pHandler,
     void* pParam, void* pContext) {
@@ -381,15 +387,17 @@ void ConnectTimerHandler(
     // No empty timer lines
     if (nTimer == TIMER_LINES) {
         printf("OUT OF TIMER LINES UH OH\nTimer handler 0x%0X not registered!", pHandler);
-        return;
+        return 0;
     }
 
-    printf("connecting timer %i with delay %u to call handler 0x%0X with param 0x%0X and context 0x%0X", nTimer, nHzDelay, pHandler, pParam, pContext);
+    //printf("connecting timer %i with delay %u", nTimer, nHzDelay);
     TimerDelays[nTimer] = nHzDelay;
     TimerHandlers[nTimer] = pHandler;
     TimerParams[nTimer] = pParam;
     TimerContexts[nTimer] = pContext;
     DataMemBarrier();
+
+    return 1;
 }
 
 

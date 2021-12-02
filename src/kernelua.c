@@ -21,11 +21,12 @@
 
 #define TIMER_HERTZ 100 /* Default hertz for libuspi (can be changed, but best to leave at default for now) */
 
-const char* rotor = "\xC4\\\xB3/";
+const char* rotor = "\xC4\\\xB3/     ";
 
 extern void _enable_interrupts(void);
 
 void keyPressed(const char* string) {
+    RPI_TermPutC('!');
     printf(string);
 }
 
@@ -34,6 +35,9 @@ void shutdown() {
     while (1) {}
 }
 
+static void keyPressedRaw(unsigned char ucModifiers, const unsigned char RawKeys[6]) {
+    printf("%X, %X, %X, %X, %X, %X", RawKeys[0], RawKeys[1], RawKeys[2], RawKeys[3], RawKeys[4], RawKeys[5]);
+}
 
 /** Main function - we'll never return from here */
 void kernel_main(unsigned int r0, unsigned int r1, unsigned int atags) {
@@ -116,7 +120,8 @@ void kernel_main(unsigned int r0, unsigned int r1, unsigned int atags) {
     RPI_TermInit(fb, width, height);
 
     if (fb[0] != 0x000000) {
-        RPI_TermSetTextColor(COLORS_RED);
+        RPI_TermSetTextColor(COLORS_BLACK);
+        RPI_TermSetBackgroundColor(COLORS_RED);
         printf("!!CAUGHT SOFT RESET!!");
         return; // interrupts still happen, this doesn't properly halt
     }
@@ -304,48 +309,53 @@ pqrstuvwxyz{|}~\x7F\n\
     //printf("libuspi is included i think :thinking emoji but I can't display it because this is ASCII (actually KLSCII \x01)");
     printf("YOOO LETS GO I COMPILED ON WINDOWS 10 YEET");
 */
+//printf("What happens if I try to use unicode? 🤔 💾 📧\n\n");
+
     int result;
 
     //RPI_TermSetCursorPos(0, 0);
-    RPI_TermSetTextColor(COLORS_PURPLE);
-
     RPI_TermSetTextColor(COLORS_WHITE);
     result = USPiInitialize();
 
-    RPI_TermSetTextColor(COLORS_PURPLE);
-    //printf("What happens if I try to use unicode? 🤔 💾 📧\n\n");
-    printf("\nUSPiInitialize() result: %.d\n", result);
-
-    if (result != 0) {
+    if (result == 0) {
         RPI_TermSetTextColor(COLORS_ORANGE);
     } else {
         RPI_TermSetTextColor(COLORS_LIME);
     }
 
+    printf("USPiInitialize() result: %.d\n", result);
+
     if (USPiKeyboardAvailable()) {
-        printf("Keyboard detected!\n");
+        RPI_TermPrintAt(100, 0, "Keyboard detected!");
+        //USPiKeyboardRegisterKeyStatusHandlerRaw(keyPressedRaw);
         USPiKeyboardRegisterKeyPressedHandler(keyPressed);
         USPiKeyboardRegisterShutdownHandler(shutdown);
-        printf("try typing?\n");
+        RPI_TermPrintAt(100, 1, "try typing?");
         RPI_TermSetTextColor(COLORS_WHITE);
+        RPI_TermSetCursorPos(100, 2);
 
-        while (1) {
-            USPiKeyboardUpdateLEDs();
-        }
-    } else {
-        printf("No keyboard detected!\nPlug in a keyboard and reboot the device.  ");
-
-        int x = RPI_TermGetCursorX();
-        int y = RPI_TermGetCursorY();
         int i = 0;
         while (1) {
-            RPI_TermSetCursorPos(x, y);
-            RPI_TermPutC(rotor[i++]);
-            if (i > 3) {
-                i = 0;
-            }
+            for (i = 0; i <= 3; i++) {
+                USPiKeyboardUpdateLEDs();
 
-            RPI_WaitMicroSeconds(250000);
+                //RPI_TermSetCursorPos(143, 0);
+                RPI_TermPrintAt(143, 0, &rotor[i]);
+                RPI_WaitMicroSeconds(250000);
+            }
+        }
+    } else {
+        RPI_TermSetTextColor(COLORS_ORANGE);
+        RPI_TermPrintAt(100, 0, "No keyboard detected!");
+        RPI_TermPrintAt(100, 1, "Plug in a keyboard and reboot the device.");
+
+        int i = 0;
+        while (1) {
+            for (i = 0; i <= 3; i++) {
+                RPI_TermSetCursorPos(143, 1);
+                RPI_TermPutC(rotor[i]);
+                RPI_WaitMicroSeconds(250000);
+            }
         }
     }
 
