@@ -77,8 +77,8 @@
 .equ    GIC_CPUB_offset,        0x1000
 
 .equ    SCTLR_ENABLE_DATA_CACHE,        0x4
-.equ	  SCTLR_ENABLE_BRANCH_PREDICTION, 0x800
-.equ	  SCTLR_ENABLE_INSTRUCTION_CACHE, 0x1000
+.equ	SCTLR_ENABLE_BRANCH_PREDICTION, 0x800
+.equ	SCTLR_ENABLE_INSTRUCTION_CACHE, 0x1000
 
 #define PRESCALER_2711	0xff800008
 #define MBOX_2711	0xff8000cc
@@ -173,6 +173,20 @@ _setup_interrupt_table:
     msr cpsr_c, r0
     ldr sp, =0x8000
 
+    // MMU
+
+//#if RASPPI == 1
+//	nAuxControl |= ARM_AUX_CONTROL_CACHE_SIZE;	// restrict cache size (no page coloring)
+//#else
+//	nAuxControl |= ARM_AUX_CONTROL_SMP;
+//#endif
+//	mrc p15, 0, r0, c1, c0,  1
+//    orr r0, #(1 << 6)
+//	mcr p15, 0, r0, c1, c0,  1
+
+//    mov r0, #0x1
+//	mcr p15, 0, r0, c3, c0,  0
+
     // Enable L1 Cache -------------------------------------------------------
 
     // R0 = System Control Register
@@ -182,6 +196,7 @@ _setup_interrupt_table:
     orr r0,#SCTLR_ENABLE_BRANCH_PREDICTION
     orr r0,#SCTLR_ENABLE_DATA_CACHE
     orr r0,#SCTLR_ENABLE_INSTRUCTION_CACHE
+//    orr r0,#0x1    // enable the MMU
 
     // System Control Register = R0
     mcr p15,0,r0,c1,c0,0

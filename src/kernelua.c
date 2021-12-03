@@ -12,6 +12,7 @@
 #include "rpi-systimer.h"
 
 #include "rpi-term.h"
+#include "rpi-power.h"
 
 #include "uspi.h"
 
@@ -21,9 +22,19 @@
 
 #define TIMER_HERTZ 100 /* Default hertz for libuspi (can be changed, but best to leave at default for now) */
 
-const char* rotor = "\xC4\\\xB3/     ";
+const char* rotor = "\xC4\\\xB3/";
 
 extern void _enable_interrupts(void);
+
+void spinRotor(int i) {
+    int x = RPI_TermGetCursorX();
+    int y = RPI_TermGetCursorY();
+    RPI_TermSetCursorPos(143, 0);
+    RPI_TermPutC(rotor[i]);
+    RPI_TermSetCursorPos(x, y);
+
+    RPI_WaitMicroSeconds(250000);
+}
 
 void keyPressed(const char* string) {
     RPI_TermPutC('!');
@@ -31,8 +42,13 @@ void keyPressed(const char* string) {
 }
 
 void shutdown() {
-    printf("yeah not yet srry");
-    while (1) {}
+    RPI_TermSetTextColor(COLORS_ORANGE);
+    printf("ctrl+alt+del triggered shutdown in ");
+    for (int i = 3; i > 0; i--) {
+        printf("%d ", i);
+        RPI_WaitMicroSeconds(1000000);
+    }
+    RPI_PowerReset();
 }
 
 static void keyPressedRaw(unsigned char ucModifiers, const unsigned char RawKeys[6]) {
@@ -325,45 +341,36 @@ pqrstuvwxyz{|}~\x7F\n\
 
     printf("USPiInitialize() result: %.d\n", result);
 
-    if (USPiKeyboardAvailable()) {
-        RPI_TermPrintAt(100, 0, "Keyboard detected!");
-        //USPiKeyboardRegisterKeyStatusHandlerRaw(keyPressedRaw);
-        USPiKeyboardRegisterKeyPressedHandler(keyPressed);
-        USPiKeyboardRegisterShutdownHandler(shutdown);
-        RPI_TermPrintAt(100, 1, "try typing?");
-        RPI_TermSetTextColor(COLORS_WHITE);
-        RPI_TermSetCursorPos(100, 2);
+    int x, y;
 
-        int i = 0;
-        while (1) {
-            for (i = 0; i <= 3; i++) {
-                USPiKeyboardUpdateLEDs();
-
-                //RPI_TermSetCursorPos(143, 0);
-                RPI_TermPrintAt(143, 0, &rotor[i]);
-                RPI_WaitMicroSeconds(250000);
-            }
-        }
-    } else {
+    if (!USPiKeyboardAvailable()) {
         RPI_TermSetTextColor(COLORS_ORANGE);
         RPI_TermPrintAt(100, 0, "No keyboard detected!");
-        RPI_TermPrintAt(100, 1, "Plug in a keyboard and reboot the device.");
+        RPI_TermSetCursorPos(100, 1);
+        printf("Plug in a keyboard. Device rebooting in 10 ");
 
-        int i = 0;
-        while (1) {
-            for (i = 0; i <= 3; i++) {
-                RPI_TermSetCursorPos(143, 1);
-                RPI_TermPutC(rotor[i]);
-                RPI_WaitMicroSeconds(250000);
-            }
+        for (int i = 9; i > 0; i--) {
+            printf("%d ", i);
+            RPI_WaitMicroSeconds(1000000);
         }
+        RPI_PowerReset();
+
     }
 
-    /*while(1) {
-        RPI_WaitMicroSeconds(50000);
-        LED_OFF();
-        RPI_WaitMicroSeconds(5000);
-        LED_ON();
-    }*/
+    RPI_TermPrintAt(100, 0, "Keyboard detected!");
+    //USPiKeyboardRegisterKeyStatusHandlerRaw(keyPressedRaw);
+    USPiKeyboardRegisterKeyPressedHandler(keyPressed);
+    USPiKeyboardRegisterShutdownHandler(shutdown);
+    RPI_TermPrintAt(100, 1, "try typing?");
+    RPI_TermSetTextColor(COLORS_WHITE);
+    RPI_TermSetCursorPos(100, 2);
 
+    int i = 0;
+    while (1) {
+        for (i = 0; i <= 3; i++) {
+            USPiKeyboardUpdateLEDs();
+
+            spinRotor(i);
+        }
+    }
 }
