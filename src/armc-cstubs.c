@@ -35,6 +35,8 @@ extern int errno;
 /* Prototype for the Term write function */
 #include "rpi-term.h"
 
+#include "rpi-aux.h"
+
 /* A pointer to a list of environment variables and their values. For a minimal
    environment, this empty list is adequate: */
 char *__env[1] = {0};
@@ -201,9 +203,13 @@ int wait( int *status )
 }
 
 
-void outbyte( char b )
-{
-    //RPI_AuxMiniUartWrite( b );
+void outbyte(char b) {
+    // UART uses '\r\n', but our Term uses '\n'. all printf calls use just '\n', so add the carriage return for UART
+    if (b == '\n') {
+        RPI_AuxMiniUartWrite('\r');
+    }
+    RPI_AuxMiniUartWrite(b);
+
     RPI_TermPutC(b);
 }
 

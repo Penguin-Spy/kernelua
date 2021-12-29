@@ -1,0 +1,22 @@
+ok so
+
+MMU is setup, in theory memory mapped device registers are not cached (this is untested)
+also even with all data caching disabled the issue persists
+malloc & free do work properly (we're not just eating through RAM without freeing any of it, libc must have some decent implementation)
+
+in Kernelua, the USB transfer stage is always incomplete
+  WHEN IT'S INCOMPLETE, the pKeyboard->m_pReportBuffer POINTER is MEANINGLESS and is UNINITALIZED MEMORY! (usually 0x55, sometimes 0x5D, etc.)
+  cannot be used to determine why it's incomplete (because theres no info, because it's incomplete. bruh)
+
+in the libuspi environment, the stage alternates between incomplete and complete (seemingly requiring 2 transfers to complete the stage)
+  again, the hexdump of the incomplete stage is MEANINGLESS
+  the hexdump of the complete stage is the direct data from the USB report (as seen in the Ben Eater video https://youtu.be/wdgULBpRoXk)
+  AFTER the complete stage, the keyboard request is completed and the registered handler is called.
+
+theory: must use some other part of the transfer stage to determine why it was incomplete.
+  Kernelua: packets: 1, bytes transfered: 0, state: 2, status: 66 (1000010) DWHCI_HOST_CHAN_INT_NYET | DWHCI_HOST_CHAN_INT_HALTED
+  libuspi:  packets: 1, bytes transfered: 0, state: 2, status: 18 (0010010) DWHCI_HOST_CHAN_INT_NAK  | DWHCI_HOST_CHAN_INT_HALTED
+
+  state of 2 likely == CompleteSplit (meaining 1st transfer of 0 bytes is trying to complet the split)
+
+  kernelua always gets a "NYET" (not yet) transfer status. usb 2.0 spec: "No response yet from receiver (see Sections 8.5.1 and 11.17-11.21)"

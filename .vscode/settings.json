@@ -1,9 +1,11 @@
 {
     "files.eol": "\n",
-    "editor.detectIndentation": true,
+    "editor.detectIndentation": false,
+    "editor.tabSize": 2,
     "C_Cpp.formatting": "vcFormat",
     "C_Cpp.vcFormat.newLine.beforeElse": false,
     "C_Cpp.vcFormat.newLine.beforeOpenBrace.block": "sameLine",
     "C_Cpp.vcFormat.newLine.beforeOpenBrace.function": "sameLine",
+    "C_Cpp.vcFormat.space.afterKeywordsInControlFlowStatements": false,
     "C_Cpp.vcFormat.indent.caseLabels": true
 }

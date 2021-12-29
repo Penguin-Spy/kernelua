@@ -24,8 +24,9 @@ C_DEFINES = -DIOBPLUS=1 -DRPI3=1
 
 TOOLCHAIN = compiler/gcc-arm-none-eabi-10-2020-q4-major/bin/arm-none-eabi
 C_INCLUDES = -I$(SRCDIR)/inc -I$(SRCDIR)
-C_FLAGS   = -mfpu=crypto-neon-fp-armv8 -mfloat-abi=hard -march=armv8-a+crc -mtune=cortex-a53 -mno-unaligned-access -O2 -g -nostartfiles
-ASM_FLAGS = -mfpu=crypto-neon-fp-armv8 -mfloat-abi=hard -march=armv8-a+crc -mtune=cortex-a53 -mno-unaligned-access
+ARCH = -mfpu=crypto-neon-fp-armv8 -mfloat-abi=hard -march=armv8-a+crc -mtune=cortex-a53 -mno-unaligned-access
+C_FLAGS   = $(ARCH) -O4 -nostartfiles
+ASM_FLAGS = $(ARCH)
 
 # end of stuff that needs to be set per-model
 
