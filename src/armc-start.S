@@ -193,10 +193,13 @@ _setup_interrupt_table:
     mrc p15,0,r0,c1,c0,0
 
     // Enable caches and branch prediction
-    orr r0,#SCTLR_ENABLE_BRANCH_PREDICTION
-    orr r0,#SCTLR_ENABLE_DATA_CACHE
-    orr r0,#SCTLR_ENABLE_INSTRUCTION_CACHE
-//    orr r0,#0x1    // enable the MMU
+    //orr r0,#SCTLR_ENABLE_BRANCH_PREDICTION
+    //orr r0,#SCTLR_ENABLE_DATA_CACHE
+    //orr r0,#SCTLR_ENABLE_INSTRUCTION_CACHE
+
+    // TODO: set up paging tables (must do before enabling the MMU)
+    //orr r0,#0x1    // enable the MMU
+
 
     // System Control Register = R0
     mcr p15,0,r0,c1,c0,0
@@ -228,7 +231,7 @@ _setup_interrupt_table:
     // This is also where the other unused cores branch to (we only run on core 0).
     dsb
 _inf_loop:
-    wfi // give the cores some zzz's (idk if this actually does anything on the RPI hardware)
+    wfi             // give the cores some zzz's (idk if this actually does anything on the RPI hardware)
     b _inf_loop
 
 
@@ -245,12 +248,6 @@ _get_stack_pointer:
 
     // Return from the function
     mov     pc, lr
-
-//_get_link_register:
-    // Return the link register's value
-    // uhh like a mrs or smthing
-
-//    mov     pc, lr
 
 _enable_interrupts:
     mrs     r0, cpsr
