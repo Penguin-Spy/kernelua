@@ -34,7 +34,7 @@ void spinRotor(int i) {
   RPI_TermPutC(rotor[i]);
   RPI_TermSetCursorPos(x, y);
 
-  RPI_WaitMicroSeconds(250000);
+  RPI_WaitMiliSeconds(250);
 }
 
 void keyPressed(const char* string) {
@@ -48,6 +48,7 @@ void shutdown() {
   for(int i = 3; i > 0; i--) {
     printf("%d ", i);
     RPI_WaitMicroSeconds(1000000);
+    //RPI_WaitSeconds(1);
   }
   RPI_PowerReset();
 }
@@ -338,11 +339,11 @@ pqrstuvwxyz{|}~\x7F\n\
     RPI_TermSetTextColor(COLORS_LIME);
   }
   printf("mem init: %i", result);
-  RPI_WaitMicroSeconds(5000000);
+  RPI_WaitSeconds(5);
 
   //RPI_TermSetCursorPos(0, 0);
   RPI_TermSetTextColor(COLORS_WHITE);
-  RPI_WaitMicroSeconds(1000000);
+  RPI_WaitSeconds(1);
 
   result = USPiInitialize();
 
@@ -362,7 +363,7 @@ pqrstuvwxyz{|}~\x7F\n\
 
     for(int i = 9; i > 0; i--) {
       printf("%d ", i);
-      RPI_WaitMicroSeconds(1000000);
+      RPI_WaitSeconds(1);
     }
     RPI_PowerReset();
 
