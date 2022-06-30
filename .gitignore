@@ -13,5 +13,8 @@ card
 firmware
 .github/workflows
 
+#ignore font.h output (it's generated but doesn't go in the build directory because idk including headers is hard)
+font/font.h
+
 #debugging disassembly output
 kernel.disasm

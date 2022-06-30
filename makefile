@@ -2,6 +2,7 @@ SRCDIR   = src
 BUILDDIR = build
 OBJDIR   = $(BUILDDIR)/obj
 BINDIR   = $(BUILDDIR)/bin
+FONTDIR = font
 
 OBJFILES = $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.obj,$(wildcard $(SRCDIR)/*.c)) $(patsubst $(SRCDIR)/%.S,$(OBJDIR)/%.obj,$(wildcard $(SRCDIR)/*.S))
 LIBFILES = $(wildcard $(SRCDIR)/*.a)
@@ -23,7 +24,7 @@ ENSUREDIR  = $(call MKDIR,$(dir $@))
 C_DEFINES = -DIOBPLUS=1 -DRPI3=1
 
 TOOLCHAIN = compiler/gcc-arm-none-eabi-10-2020-q4-major/bin/arm-none-eabi
-C_INCLUDES = -I$(SRCDIR)/inc -I$(SRCDIR)
+C_INCLUDES = -I$(SRCDIR)/inc -I$(SRCDIR) -I$(FONTDIR)
 ARCH = -mfpu=crypto-neon-fp-armv8 -mfloat-abi=hard -march=armv8-a+crc -mtune=cortex-a53 -mno-unaligned-access
 C_FLAGS   = $(ARCH) -O4 -nostartfiles
 ASM_FLAGS = $(ARCH)
@@ -32,6 +33,12 @@ ASM_FLAGS = $(ARCH)
 
 
 all: $(BINDIR)/kernel.img
+
+# Generate font header file
+$(FONTDIR)/font.h: $(FONTDIR)/klscii.png
+	@echo [Font]:    $^ -^> $@
+	@$(ENSUREDIR)
+	@py font/generate_font.py $^ $@
 
 # Build C object
 $(OBJDIR)/%.obj: $(SRCDIR)/%.c
@@ -46,8 +53,8 @@ $(OBJDIR)/%.obj: $(SRCDIR)/%.S
 	@$(TOOLCHAIN)-gcc $(C_INCLUDES) $(C_DEFINES) $(ASM_FLAGS) -o $@ -c $^
 
 # Link ELF executable
-$(BINDIR)/kernel.elf: $(OBJFILES) $(LIBFILES)
-	@echo [Link]: $^ -^> $@
+$(BINDIR)/kernel.elf: $(FONTDIR)/font.h $(OBJFILES) $(LIBFILES)
+	@echo [Link]:   $^ -^> $@
 	@$(ENSUREDIR)
 	@$(TOOLCHAIN)-gcc $(C_INCLUDES) $(C_DEFINES) $(C_FLAGS) $^ -o $(BINDIR)/kernel.elf
 #	@$(TOOLCHAIN)-objdump --source-comment=# bin/kernel.elf > kernel.disasm
