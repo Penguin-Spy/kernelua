@@ -165,6 +165,8 @@ void uspi_assertion_failed(const char* pExpr, const char* pFile, unsigned nLine)
 void DebugHexdump(const int* pBuffer, unsigned nBufLen, const char* pSource /* = 0 */) {
   if(pSource) {
     RPI_TermPrintDyed(COLORS_PINK, COLORS_BLACK, "[%s]: Dumping %u bytes at 0x%0X:\n", pSource, nBufLen, pBuffer);
+  } else {
+    RPI_TermPrintDyed(COLORS_PINK, COLORS_BLACK, "[?]: Dumping %u bytes at 0x%0X:\n", nBufLen, pBuffer);
   }
 
   //int* ptr = pBuffer;

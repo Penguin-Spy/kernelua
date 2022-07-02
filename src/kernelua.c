@@ -85,10 +85,7 @@ void kernel_main(unsigned int r0, unsigned int r1, unsigned int atags) {
   mp = RPI_PropertyGet(TAG_GET_CLOCK_RATE);
   uint32_t core_frequency = mp->data.buffer_32[1];
 
-  /* Calculate the timer reload register value so we achieve an interrupt rate of 2Hz. Every
-     second interrupt will therefore be one second. It's approximate, the division doesn't
-     really work out to be precisely 1s because of the divisor options and the core
-     frequency. */
+  /* Calculate the timer reload register value so we achieve an interrupt rate of TIMER_HERTZ (100) */
   uint16_t prescales[] = { 1, 16, 256, 1 };
   uint32_t timer_load = (1.0 / TIMER_HERTZ) / (1.0 / (core_frequency / (RPI_GetArmTimer()->PreDivider + 1) * (prescales[(RPI_GetArmTimer()->Control & 0xC) >> 2])));
   RPI_GetArmTimer()->Load = timer_load;
@@ -355,37 +352,71 @@ pqrstuvwxyz{|}~\x7F\n\
 
   printf("USPiInitialize() result: %.d\n", result);
 
-  if(!USPiKeyboardAvailable()) {
+  /*
+  RPI_TermSetTextColor(COLORS_YELLOW);
+  RPI_TermPrintAt(100, 0, "timer calibration: ");
+
+  int delay = 100;
+  char* context = "hi";
+
+  unsigned int hTimer = StartKernelTimer(delay, timer_hi, &delay, context);
+  printf("started timer #%u", hTimer);
+
+  RPI_WaitSeconds(30);
+
+  //CancelKernelTimer(hTimer);
+  //RPI_TermPrintAt(100, 0, "  canceled timer #%u", hTimer);
+
+*/
+
+
+  if(USPiKeyboardAvailable()) {
+    RPI_TermPrintAt(100, 0, "Keyboard detected!");
+    //USPiKeyboardRegisterKeyStatusHandlerRaw(keyPressedRaw);
+    USPiKeyboardRegisterKeyPressedHandler(keyPressed);
+    USPiKeyboardRegisterShutdownHandler(shutdown);
+    RPI_TermPrintAt(100, 1, "try typing?");
+    RPI_TermSetTextColor(COLORS_WHITE);
+    RPI_TermSetCursorPos(100, 2);
+
+    int i = 0;
+    while(1) {
+      for(i = 0; i <= 3; i++) {
+        USPiKeyboardUpdateLEDs();
+
+        spinRotor(i);
+      }
+    }
+  } else if(USPiMassStorageDeviceAvailable()) {
+    unsigned int size = USPiMassStorageDeviceGetCapacity(0);
+
+    if(size > 0) {
+      printf("Capacity of device 0: %i bytes", size * USPI_BLOCK_SIZE);
+
+      // literally just read the data into the framebuffer because attempting to allocate an int buffer of 512 bytes broke something somewhere & the RPi just started halting while initalizing.
+      int result = USPiMassStorageDeviceRead(0, fb, 1, 0);
+      if(result == USPI_BLOCK_SIZE) {
+        DebugHexdump(fb, USPI_BLOCK_SIZE, "storage");
+      } else {
+        RPI_TermSetTextColor(COLORS_RED);
+        printf("Read result: %i", result);
+      }
+    } else {
+      RPI_TermSetTextColor(COLORS_RED);
+      printf("Error: reading storage device 0's capacity failed");
+    }
+    printf("\nRPi rebooting in ");
+
+  } else {
     RPI_TermSetTextColor(COLORS_ORANGE);
-    RPI_TermPrintAt(100, 0, "No keyboard detected!");
+    RPI_TermPrintAt(100, 0, "No keyboard or mass storage detected!");
     RPI_TermSetCursorPos(100, 1);
-    printf("Plug in a keyboard. Device rebooting in 10 ");
-
-    for(int i = 9; i > 0; i--) {
-      printf("%d ", i);
-      RPI_WaitSeconds(1);
-    }
-    RPI_PowerReset();
-
+    printf("Plug in a device. RPi rebooting in ");
   }
 
-  RPI_TermPrintAt(100, 0, "Keyboard detected!");
-  //USPiKeyboardRegisterKeyStatusHandlerRaw(keyPressedRaw);
-  USPiKeyboardRegisterKeyPressedHandler(keyPressed);
-  USPiKeyboardRegisterShutdownHandler(shutdown);
-  RPI_TermPrintAt(100, 1, "try typing?");
-  RPI_TermSetTextColor(COLORS_WHITE);
-  RPI_TermSetCursorPos(100, 2);
-
-  int i = 0;
-  while(1) {
-    for(i = 0; i <= 3; i++) {
-      USPiKeyboardUpdateLEDs();
-
-      spinRotor(i);
-    }
+  for(int i = 10; i > 0; i--) {
+    printf("%d ", i);
+    RPI_WaitSeconds(1);
   }
-
-  // poweroff the pi incase the above while loop breaks in the future
-  RPI_PowerOff();
+  RPI_PowerReset();
 }
