@@ -1,3 +1,6 @@
+![clones](https://img.shields.io/endpoint?url=https%3A%2F%2Fgithubstats.penguinspy.repl.co%2Fshields%2Fkernelua)
+![top language](https://img.shields.io/github/languages/top/Penguin-Spy/kernelua)
+![latest commit](https://img.shields.io/github/last-commit/Penguin-Spy/kernelua?label=latest%20commit)
 # Kernelua
 > Pronounced "`Kernel-lua`" (as one word), capitalized as a noun. `Lua` by itself has a capital `L`: http://www.lua.org/about.html#name.
 
