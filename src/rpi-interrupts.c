@@ -155,7 +155,7 @@ static void* TimerContexts[TIMER_LINES] = { 0 };
 #define TIMER_PRINT 0
 
 // enable the IRQ display on the right edge of the screen
-#define IRQ_DISPLAY 1
+#define IRQ_DISPLAY 0
 /* KEY:
  *  ? = checking if this IRQ pending (beginning of for loop)
  *  ! = this IRQ is pending
