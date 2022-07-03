@@ -11,7 +11,6 @@ void write32(uint32_t nAddress, uint32_t nValue) {
 
 // Resets the CPU, rebooting the device
 void RPI_PowerReset() {
-  //DataMemBarrier();
 
   // set some timeout
   write32(POWER_WDOG, POWER_PASSWORD | 0x1);
@@ -22,7 +21,7 @@ void RPI_PowerReset() {
   rstc |= POWER_PASSWORD | POWER_RSTC_WRCFG_FULL_RESET;
   write32(POWER_RSTC, rstc);
 
-  while (1) {} // wait for reset
+  while(1) {} // wait for reset
 }
 
 // FROM https://github.com/raspberrypi/linux/blob/3b799b23157f8d3961971c5f956aaf79f0bf1de7/drivers/watchdog/bcm2835_wdt.c#L164
@@ -32,7 +31,6 @@ void RPI_PowerReset() {
  * powered off.
  */
 void RPI_PowerOff() {
-  //DataMemBarrier();
 
   // reboot into "halt" partition
   int rsts = read32(POWER_RSTS);

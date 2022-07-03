@@ -139,16 +139,10 @@ static void* TimerParams[TIMER_LINES] = { 0 };
 static void* TimerContexts[TIMER_LINES] = { 0 };
 
 
-#define	EnableInterrupts()	//__asm volatile ("cpsie i")
-#define	DisableInterrupts()	//__asm volatile ("cpsid i")
-
-#define DataSyncBarrier()	//__asm volatile ("mcr p15, 0, %0, c7, c10, 4" : : "r" (0) : "memory")
-#define DataMemBarrier() 	//__asm volatile ("mcr p15, 0, %0, c7, c10, 5" : : "r" (0) : "memory")
-
-//#define SaveContext() __asm volatile ("SAVE_CONTEXT")
-//#define RestoreContext() __asm volatile ("RESTORE_CONTEXT")
-
-// enable logging all interrupt events to the screen
+/* WARNING: ENABLING ANY OF THESE WILL BREAK USB (and probably most interrupt stuff) USE WITH CAUTION & INTENT
+  printing text to the screen takes too long & breaks timing stuff, use these only to make sure interrupts are happening properly!
+ */
+ // enable logging all interrupt events to the screen
 #define IRQ_PRINT 0
 
 // enable logging all timer trigger events to the screen
@@ -181,9 +175,6 @@ static void* TimerContexts[TIMER_LINES] = { 0 };
  */
 void __attribute__((interrupt("IRQ"))) interrupt_vector(void) {
 
-    DisableInterrupts();
-    DataMemBarrier();
-
     // LED tracking stuff
     static int lit = 0;
     static int jiffies = 0;
@@ -200,7 +191,6 @@ void __attribute__((interrupt("IRQ"))) interrupt_vector(void) {
         RPI_TermPrintAtDyed(239, nIRQ, COLORS_LIGHTBLUE, COLORS_BLACK, "?");
 #endif
 
-        DataMemBarrier();
         if (ARM_IC_IRQ_PENDING(nIRQ) & ARM_IRQ_MASK(nIRQ)) {
             // this irq is pending
 #if IRQ_PRINT == 1
@@ -219,8 +209,6 @@ void __attribute__((interrupt("IRQ"))) interrupt_vector(void) {
 #if IRQ_PRINT == 1
                 RPI_TermPrintDyed(COLORS_LIGHTBLUE, COLORS_BLACK, "IRQ %u using handler %x with param %x", nIRQ, pHandler, IRQParams[nIRQ]);
 #endif
-                DataMemBarrier();
-                DataSyncBarrier();
                 (*pHandler) (IRQParams[nIRQ]);
 #if IRQ_DISPLAY == 1
                 RPI_TermPrintAtDyed(239, nIRQ, COLORS_LIGHTBLUE, COLORS_BLACK, "#");
@@ -253,8 +241,6 @@ void __attribute__((interrupt("IRQ"))) interrupt_vector(void) {
 #if TIMER_PRINT == 1
                             RPI_TermPrintDyed(COLORS_YELLOW, COLORS_BLACK, "Timer %u using handler 0x%0X with context 0x%0X...", nTimer, pHandler, TimerContexts[nTimer]);
 #endif
-                            DataMemBarrier();
-                            DataSyncBarrier();
                             (*pHandler) (nTimer, TimerParams[nTimer], TimerContexts[nTimer]);
 #if TIMER_PRINT == 1
                             RPI_TermPrintDyed(COLORS_YELLOW, COLORS_BLACK, " finished.\n                                                              \n");
@@ -294,82 +280,30 @@ void __attribute__((interrupt("IRQ"))) interrupt_vector(void) {
             }
         }
     }
-    // for all irqs
-        // is this one pending
-            // acknowledge it, then
-            // get it's handler & param & call
-
-
-    /*static int lit = 0;
-    static int jiffies = 0;
-
-    if (RPI_GetArmTimer()->MaskedIRQ) {
-        /* Clear the ARM Timer interrupt - it's the only interrupt we have
-           enabled, so we want don't have to work out which interrupt source
-           caused us to interrupt */
-           /*RPI_GetArmTimer()->IRQClear = 1;
-
-           jiffies++;
-           if (jiffies == 2) {
-               jiffies = 0;
-               uptime++;
-           }
-
-           // Flip the LED
-           if (lit) {
-               LED_OFF();
-               lit = 0;
-               printf(" Off");
-           } else {
-               LED_ON();
-               lit = 1;
-               printf(" On");
-           }
-       }*/
-
+    
 #if IRQ_DISPLAY == 1
     RPI_TermPrintAtDyed(239, IRQ_LINES, COLORS_LIGHTBLUE, COLORS_BLACK, "}");
 #endif
-
-    DataMemBarrier();
-    DataSyncBarrier();
-    EnableInterrupts();
-
-    //RestoreContext();
+    
 }
 
-
-#define ARM_IC_IRQS_ENABLE(irq)	(  (irq) < ARM_IRQ2_BASE	\
-				 ? rpiIRQController->Enable_IRQs_1 & ARM_IRQ_MASK((irq))		\
-				 : ((irq) < ARM_IRQBASIC_BASE	\
-				   ? rpiIRQController->Enable_IRQs_2 & ARM_IRQ_MASK((irq))	\
-				   : rpiIRQController->Enable_Basic_IRQs & ARM_IRQ_MASK((irq))))
+static const char fromInt[] = "int";
 
 void ConnectIRQHandler(unsigned nIRQ, TInterruptHandler* pHandler, void* pParam) {
-    rpi_irq_controller_t* rpiIRQController = (rpi_irq_controller_t*)RPI_INTERRUPT_CONTROLLER_BASE;
-    printf("Enabling IRQ %u (group ", nIRQ);
+  static rpi_irq_controller_t* rpiIRQController = (rpi_irq_controller_t*)RPI_INTERRUPT_CONTROLLER_BASE; // using RPI_GetIrqController doesn't work
 
-    IRQHandlers[nIRQ] = pHandler;
-    IRQParams[nIRQ] = pParam;
-    DataSyncBarrier();
-    DataMemBarrier();
+  IRQHandlers[nIRQ] = pHandler;
+  IRQParams[nIRQ] = pParam;
 
-
-    if (nIRQ < ARM_IRQ2_BASE) {
-        rpiIRQController->Enable_IRQs_1 = ARM_IRQ_MASK(nIRQ);
-        DataMemBarrier();
-        printf("one).\n");
+  if(nIRQ < ARM_IRQ2_BASE) {
+    rpiIRQController->Enable_IRQs_1 = ARM_IRQ_MASK(nIRQ);
+  } else {
+    if(nIRQ < ARM_IRQBASIC_BASE) {
+      rpiIRQController->Enable_IRQs_2 = ARM_IRQ_MASK(nIRQ);
     } else {
-        if (nIRQ < ARM_IRQBASIC_BASE) {
-            rpiIRQController->Enable_IRQs_2 = ARM_IRQ_MASK(nIRQ);
-            DataMemBarrier();
-            printf("two).\n");
-        } else {
-            rpiIRQController->Enable_Basic_IRQs = ARM_IRQ_MASK(nIRQ);
-            DataMemBarrier();
-            printf("basic).\n");
-        }
+      rpiIRQController->Enable_Basic_IRQs = ARM_IRQ_MASK(nIRQ);
     }
+  }
 }
 
 int ConnectTimerHandler(
@@ -386,16 +320,14 @@ int ConnectTimerHandler(
     }
     // No empty timer lines
     if (nTimer == TIMER_LINES) {
-        printf("OUT OF TIMER LINES UH OH\nTimer handler 0x%0X not registered!", pHandler);
+      LogWrite(fromInt, LOG_ERROR, "OUT OF TIMER LINES UH OH\nTimer handler 0x%0X not registered!", pHandler);
         return 0;
     }
 
-    //printf("connecting timer %i with delay %u", nTimer, nHzDelay);
     TimerDelays[nTimer] = nHzDelay;
     TimerHandlers[nTimer] = pHandler;
     TimerParams[nTimer] = pParam;
     TimerContexts[nTimer] = pContext;
-    DataMemBarrier();
 
     return 1;
 }

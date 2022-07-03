@@ -37,7 +37,11 @@ now we can free() pieces of memory
 #include "rpi-mailbox-interface.h"
 #include "rpi-term.h"
 
+#include "uspios.h"
+
 extern int _etext; // end of executable section in the kernel
+
+static const char fromMMU[] = "mmu";
 
 //  Auxiliary Control register
 #if RASPPI == 1
@@ -84,7 +88,7 @@ int RPI_MemoryEnableMMU() {
   RPI_PropertyProcess();
   rpi_mailbox_property_t* mp = RPI_PropertyGet(TAG_GET_ARM_MEMORY);
 
-  RPI_TermPrintDyed(COLORS_CYAN, COLORS_BLACK, "ARM Memory: %8.8X%8.8X\n", mp->data.buffer_32[0], mp->data.buffer_32[1]);
+  LogWrite(fromMMU, LOG_MMU, "ARM Memory: %8.8X%8.8X", mp->data.buffer_32[0], mp->data.buffer_32[1]);
 
   //base address in bytes = mp->data.buffer_32[0]
   //size in bytes         = mp->data.buffer_32[1]
@@ -107,7 +111,8 @@ int RPI_MemoryEnableMMU() {
     }
   }
 
-  RPI_TermPrintDyed(COLORS_CYAN, COLORS_BLACK, "page table initalized, enabling MMU, ");
+  LogWrite(fromMMU, LOG_MMU, "pageTable: 0x%0X, pageTable[0]: 0x%0X, &pageTable[0]: 0x%0X", pageTable, pageTable[0], &pageTable[0]);
+  LogWrite(fromMMU, LOG_MMU, "Page table initalized");
 
   //TODO: make this an extern asm routine in armc-start.S
 
@@ -120,7 +125,7 @@ int RPI_MemoryEnableMMU() {
 #endif
   asm volatile ("mcr p15, 0, %0, c1, c0,  1" : : "r" (nAuxControl));
 
-  RPI_TermPrintDyed(COLORS_CYAN, COLORS_BLACK, "aux control, ");
+  LogWrite(fromMMU, LOG_MMU, "Enabled aux control");
 
   uint32_t nTLBType;
   asm volatile ("mrc p15, 0, %0, c0, c0,  3" : "=r" (nTLBType));
@@ -135,12 +140,7 @@ int RPI_MemoryEnableMMU() {
   // set Domain Access Control register (Domain 0 and 1 to client)
   asm volatile ("mcr p15, 0, %0, c3, c0,  0" : : "r" (DOMAIN_CLIENT << 0));
 
-  //InvalidateDataCache();
-  //FlushPrefetchBuffer();
-
-  RPI_TermPrintDyed(COLORS_CYAN, COLORS_BLACK, "TTB.\n");
-
-  RPI_TermPrintDyed(COLORS_CYAN, COLORS_BLACK, "pageTable: 0x%0X, pageTable[0]: 0x%0X, &pageTable[0]: 0x%0X\n", pageTable, pageTable[0], &pageTable[0]);
+  LogWrite(fromMMU, LOG_MMU, "Enabled TLB");
 
   // enable MMU
   uint32_t nControl;
@@ -156,10 +156,9 @@ int RPI_MemoryEnableMMU() {
 #endif
   nControl |= MMU_MODE;
 
-  RPI_TermPrintDyed(COLORS_CYAN, COLORS_BLACK, "Setting MMU_MODE ");
+  LogWrite(fromMMU, LOG_MMU, "Setting MMU_MODE");
   asm volatile ("mcr p15, 0, %0, c1, c0,  0" : : "r" (nControl) : "memory");
 
-  RPI_TermPrintDyed(COLORS_CYAN, COLORS_BLACK, "worked yeet");
-
+  LogWrite(fromMMU, LOG_MMU, "MMU configured!");
   return 0;
 }

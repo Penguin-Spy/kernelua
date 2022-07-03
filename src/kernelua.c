@@ -38,23 +38,21 @@ void spinRotor(int i) {
 }
 
 void keyPressed(const char* string) {
-  RPI_TermPutC('!');
   printf(string);
 }
 
 void shutdown() {
   RPI_TermSetTextColor(COLORS_ORANGE);
-  printf("ctrl+alt+del triggered shutdown in ");
+  printf("ctrl+alt+del triggered reboot in ");
   for(int i = 3; i > 0; i--) {
     printf("%d ", i);
-    RPI_WaitMicroSeconds(1000000);
-    //RPI_WaitSeconds(1);
+    RPI_WaitSeconds(1);
   }
   RPI_PowerReset();
 }
 
 static void keyPressedRaw(unsigned char ucModifiers, const unsigned char RawKeys[6]) {
-  printf("%X, %X, %X, %X, %X, %X", RawKeys[0], RawKeys[1], RawKeys[2], RawKeys[3], RawKeys[4], RawKeys[5]);
+  printf("%X, %X, %X, %X, %X, %X\n", RawKeys[0], RawKeys[1], RawKeys[2], RawKeys[3], RawKeys[4], RawKeys[5]);
 }
 
 /** Main function - we'll never return from here */
@@ -263,86 +261,9 @@ void kernel_main(unsigned int r0, unsigned int r1, unsigned int atags) {
     printf("Serial Number: %8.8X%8.8X\n", mp->data.buffer_32[0], mp->data.buffer_32[1]);
   }
 
+  RPI_MemoryEnableMMU();
 
-  /*RPI_TermSetBackgroundColor(COLORS_PINK);
-  RPI_TermSetTextColor(COLORS_YELLOW);
-  RPI_TermPutC('B');
-  RPI_TermSetTextColor(COLORS_CYAN);
-  RPI_TermPutC('r');
-  RPI_TermSetTextColor(COLORS_RED);
-  RPI_TermPutC('u');
-  RPI_TermSetBackgroundColor(COLORS_BLACK);
-  RPI_TermPutC('h');
-  RPI_TermSetTextColor(COLORS_WHITE);
-  RPI_TermPutC(' ');
-  RPI_TermPutC('H');
-  printf("\nHello world!\nthis is a test");
-
-  RPI_TermSetCursorPos(16, 5);
-  printf("This is being printed from ");
-  RPI_TermSetTextColor(COLORS_GREEN);
-  printf("printf");
-  RPI_TermSetTextColor(COLORS_WHITE);
-  RPI_TermSetCursorPos(12, 6);
-  printf("Which is a C standard library function");
-  RPI_TermSetCursorPos(6, 7);
-  printf("But it's running in a bare-metal environment (No Operating System)!");
-  RPI_TermSetTextColor(COLORS_BLUE);
-  RPI_TermSetCursorPos(6, 8);
-  printf("this was quite hard to get working please clap\n");*/
-
-
-
-  //printf("Initialised Framebuffer: %dx%d\n\n", width, height);
-
-  /*RPI_TermSetCursorPos(0, 13);
-  RPI_TermSetTextColor(COLORS_WHITE);
-
-  // Print out every single character from 0x01 to 0xFF (not 0x00, that would terminate the string before we print any of it :P
-  // and 0x09 - 0x0a are omitted because they're tab & newline
-  // 0x25 (%) is duplicated because it must be escaped for printf
-  printf("\
-\x01\x02\x03\x04\x05\x06\x07\x08  \x0b\x0c\x0d\x0e\x0f\n\
-\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f\n\
- !\"#$%%&'()*+,-./\n\
-0123456789:,<=>?\n\
-@ABCDEFGHIJKLMNO\n\
-PQRSTUVWXYZ[\\]^_\n\
-`abcdefghijklmno\n\
-pqrstuvwxyz{|}~\x7F\n\
-\x80\x81\x82\x83\x84\x85\x86\x87\x88\x89\x8a\x8b\x8c\x8d\x8e\x8f\n\
-\x90\x91\x92\x93\x94\x95\x96\x97\x98\x99\x9a\x9b\x9c\x9d\x9e\x9f\n\
-\xa0\xa1\xa2\xa3\xa4\xa5\xa6\xa7\xa8\xa9\xaa\xab\xac\xad\xae\xaf\n\
-\xb0\xb1\xb2\xb3\xb4\xb5\xb6\xb7\xb8\xb9\xba\xbb\xbc\xbd\xbe\xbf\n\
-\xc0\xc1\xc2\xc3\xc4\xc5\xc6\xc7\xc8\xc9\xca\xcb\xcc\xcd\xce\xcf\n\
-\xd0\xd1\xd2\xd3\xd4\xd5\xd6\xd7\xd8\xd9\xda\xdb\xdc\xdd\xde\xdf\n\
-\xe0\xe1\xe2\xe3\xe4\xe5\xe6\xe7\xe8\xe9\xea\xeb\xec\xed\xee\xef\n\
-\xf0\xf1\xf2\xf3\xf4\xf5\xf6\xf7\xf8\xf9\xfa\xfb\xfc\xfd\xfe\xff\n");
-
-    RPI_TermSetCursorPos(1, 30);
-    RPI_TermSetTextColor(COLORS_LIME);
-    //printf("libuspi is included i think :thinking emoji but I can't display it because this is ASCII (actually KLSCII \x01)");
-    printf("YOOO LETS GO I COMPILED ON WINDOWS 10 YEET");
-*/
-//printf("What happens if I try to use unicode? 🤔 💾 📧\n\n");
-
-
-
-  int result = RPI_MemoryEnableMMU();
-
-  if(result == 0) {
-    RPI_TermSetTextColor(COLORS_ORANGE);
-  } else {
-    RPI_TermSetTextColor(COLORS_LIME);
-  }
-  printf("mem init: %i", result);
-  RPI_WaitSeconds(5);
-
-  //RPI_TermSetCursorPos(0, 0);
-  RPI_TermSetTextColor(COLORS_WHITE);
-  RPI_WaitSeconds(1);
-
-  result = USPiInitialize();
+  int result = USPiInitialize();
 
   if(result == 0) {
     RPI_TermSetTextColor(COLORS_ORANGE);
@@ -352,32 +273,12 @@ pqrstuvwxyz{|}~\x7F\n\
 
   printf("USPiInitialize() result: %.d\n", result);
 
-  /*
-  RPI_TermSetTextColor(COLORS_YELLOW);
-  RPI_TermPrintAt(100, 0, "timer calibration: ");
-
-  int delay = 100;
-  char* context = "hi";
-
-  unsigned int hTimer = StartKernelTimer(delay, timer_hi, &delay, context);
-  printf("started timer #%u", hTimer);
-
-  RPI_WaitSeconds(30);
-
-  //CancelKernelTimer(hTimer);
-  //RPI_TermPrintAt(100, 0, "  canceled timer #%u", hTimer);
-
-*/
-
-
+  RPI_TermSetTextColor(COLORS_WHITE);
   if(USPiKeyboardAvailable()) {
-    RPI_TermPrintAt(100, 0, "Keyboard detected!");
+    printf("Keyboard detected! ");
     //USPiKeyboardRegisterKeyStatusHandlerRaw(keyPressedRaw);
     USPiKeyboardRegisterKeyPressedHandler(keyPressed);
     USPiKeyboardRegisterShutdownHandler(shutdown);
-    RPI_TermPrintAt(100, 1, "try typing?");
-    RPI_TermSetTextColor(COLORS_WHITE);
-    RPI_TermSetCursorPos(100, 2);
 
     int i = 0;
     while(1) {
@@ -387,11 +288,11 @@ pqrstuvwxyz{|}~\x7F\n\
         spinRotor(i);
       }
     }
-  } else if(USPiMassStorageDeviceAvailable()) {
+  } /*else if(USPiMassStorageDeviceAvailable()) {
     unsigned int size = USPiMassStorageDeviceGetCapacity(0);
 
     if(size > 0) {
-      printf("Capacity of device 0: %i bytes", size * USPI_BLOCK_SIZE);
+      printf("Capacity of device 0: %i bytes\n", size * USPI_BLOCK_SIZE);
 
       // literally just read the data into the framebuffer because attempting to allocate an int buffer of 512 bytes broke something somewhere & the RPi just started halting while initalizing.
       int result = USPiMassStorageDeviceRead(0, fb, 1, 0);
@@ -399,15 +300,15 @@ pqrstuvwxyz{|}~\x7F\n\
         DebugHexdump(fb, USPI_BLOCK_SIZE, "storage");
       } else {
         RPI_TermSetTextColor(COLORS_RED);
-        printf("Read result: %i", result);
+        printf("Read result: %i\n", result);
       }
     } else {
       RPI_TermSetTextColor(COLORS_RED);
-      printf("Error: reading storage device 0's capacity failed");
+      printf("Error: reading storage device 0's capacity failed\n");
     }
-    printf("\nRPi rebooting in ");
+    printf("RPi rebooting in ");
 
-  } else {
+  }*/ else {
     RPI_TermSetTextColor(COLORS_ORANGE);
     RPI_TermPrintAt(100, 0, "No keyboard or mass storage detected!");
     RPI_TermSetCursorPos(100, 1);
