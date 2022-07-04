@@ -1,6 +1,8 @@
 #ifndef RPI_TERM_H
 #define RPI_TERM_H
 
+#include <stdint.h>
+
 #define FONT_WIDTH 8
 #define FONT_HEIGHT 8
 

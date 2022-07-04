@@ -106,9 +106,6 @@ extern "C" {
 #define LOG_NOTICE	3
 #define LOG_DEBUG	4
 
-#define LOG_KERNEL 5
-#define LOG_MMU 6
-
 	void LogWrite(const char* pSource,		// short name of module
 		unsigned	   Severity,		// see above
 		const char* pMessage, ...);	// uses printf format options

@@ -18,7 +18,7 @@
 #include "rpi-interrupts-controller.h"
 
 #include "rpi-term.h"
-#include "uspios.h"
+#include "rpi-log.h"
 
 extern void outbyte(char b);
 
@@ -320,7 +320,7 @@ int ConnectTimerHandler(
     }
     // No empty timer lines
     if (nTimer == TIMER_LINES) {
-      LogWrite(fromInt, LOG_ERROR, "OUT OF TIMER LINES UH OH\nTimer handler 0x%0X not registered!", pHandler);
+        RPI_Log(fromInt, LOG_ERROR, "OUT OF TIMER LINES! Timer handler 0x%0X not registered.", pHandler);
         return 0;
     }
 
