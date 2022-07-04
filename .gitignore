@@ -3,7 +3,7 @@ build
 
 # vs code compiler/define config
 # disabled until different RPi models are handled
-.vscode/c_cpp_properties.json
+.vscode
 
 #leftovers from converting from the valvers tutorial (https://github.com/BrianSidebotham/arm-tutorial-rpi)
 #eventually i'll convert these to work with the new project structure :)
@@ -17,4 +17,4 @@ firmware
 font/font.h
 
 #debugging disassembly output
-kernel.disasm
+*.disasm
