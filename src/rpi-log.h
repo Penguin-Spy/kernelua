@@ -15,17 +15,22 @@
 
 
 void RPI_Log(const char* source, // who's logging this message
-  unsigned    level,    // use LOG_x defines
-  const char* message,  // message, uses printf formatting
-  ...); // variargs
+	unsigned    level,    // use LOG_x defines
+	const char* message,  // message, uses printf formatting
+	...); // variargs
 
 void RPI_vLog(const char* source, // who's logging this message
-  unsigned    level,    // use LOG_x defines
-  const char* message,  // message, uses printf formatting
-  va_list vl); // variarg list
+	unsigned    level,    // use LOG_x defines
+	const char* message,  // message, uses printf formatting
+	va_list vl); // variarg list
 
 void RPI_LogDump(const char* source,  // who's logging this message
-  const int* buffer,  // buffer to dump
-  unsigned length);   // number of bytes to dump
+	const int* buffer,  // buffer to dump
+	unsigned length);   // number of bytes to dump
+
+void RPI_LogDumpColumns(const char* source,  // who's logging this message
+	const int* buffer,  // buffer to dump
+	unsigned length,    // number of bytes to dump
+	unsigned columns);  // insert newline every nth byte
 
 #endif
