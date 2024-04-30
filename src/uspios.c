@@ -14,10 +14,10 @@ static const char fromUSPiOS[] = "uspios";
 
 // Timer
 void MsDelay(unsigned nMilliSeconds) {
-  RPI_WaitMicroSeconds(nMilliSeconds * 1000); // i had to google this, yes its 🔊
+  RPI_WaitMiliseconds(nMilliSeconds);
 }
 void usDelay(unsigned nMicroSeconds) {
-  RPI_WaitMicroSeconds(nMicroSeconds);
+  RPI_WaitMicroseconds(nMicroSeconds);
 }
 
 //TODO: KernelTimerHandler????

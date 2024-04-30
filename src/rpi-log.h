@@ -25,11 +25,11 @@ void RPI_vLog(const char* source, // who's logging this message
 	va_list vl); // variarg list
 
 void RPI_LogDump(const char* source,  // who's logging this message
-	const int* buffer,  // buffer to dump
+	const uint8_t* buffer,  // buffer to dump
 	unsigned length);   // number of bytes to dump
 
 void RPI_LogDumpColumns(const char* source,  // who's logging this message
-	const int* buffer,  // buffer to dump
+	const uint8_t* buffer,  // buffer to dump
 	unsigned length,    // number of bytes to dump
 	unsigned columns);  // insert newline every nth byte
 

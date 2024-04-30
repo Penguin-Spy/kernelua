@@ -30,8 +30,12 @@ typedef struct {
 
 
 rpi_sys_timer_t* RPI_GetSystemTimer(void);
-void RPI_WaitMicroSeconds(uint32_t us);
-void RPI_WaitMiliSeconds(uint32_t ms);
-void RPI_WaitSeconds(uint32_t secs);
+uint64_t RPI_GetTimerTicks(void);
+uint64_t RPI_TimerTickDifference(uint64_t first, uint64_t second);
+void RPI_WaitMicroseconds(uint32_t us);
+void RPI_WaitCycles(unsigned int cycles);
+
+#define RPI_WaitMiliseconds(ms)   RPI_WaitMicroseconds(ms * 1000)
+#define RPI_WaitSeconds(secs)     RPI_WaitMicroseconds(secs * 1000000)
 
 #endif

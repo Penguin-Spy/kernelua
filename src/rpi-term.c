@@ -106,6 +106,21 @@ int RPI_TermPutC(char glyph) {
     }
 }
 
+// quick(er) functions that don't use printf
+void RPI_TermPutS(char* string) {
+	for(int i = 0; i < strlen(string); i++) {
+		RPI_TermPutC(string[i]);
+	}
+}
+void RPI_TermPutHex(unsigned int hex) {
+	int digit;
+	for(int i = 28; i >= 0; i -= 4) { // loop through shifting less bits over
+		digit = hex >> i & 0xf; // last 16 bits
+		if(digit > 9) { digit+= 0x37; } else { digit += 0x30; } // offset to correct klscii character
+		RPI_TermPutC(digit);
+	}
+}
+
 void RPI_TermPrintAt(int x, int y, const char* string, ...) {
     va_list vl;
     va_start(vl, string);

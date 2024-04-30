@@ -43,11 +43,11 @@ void RPI_vLog(const char* source, unsigned level, const char* message, va_list v
 	RPI_TermSetBackgroundColor(old_bg);
 }
 
-void RPI_LogDump(const char* source, const int* buffer, unsigned length) {
+void RPI_LogDump(const char* source, const uint8_t* buffer, unsigned length) {
 	RPI_LogDumpColumns(source, buffer, length, 0);
 }
 
-void RPI_LogDumpColumns(const char* source, const int* buffer, unsigned length, unsigned columns) {
+void RPI_LogDumpColumns(const char* source, const uint8_t* buffer, unsigned length, unsigned columns) {
 	int old_fg = RPI_TermGetTextColor();
 	int old_bg = RPI_TermGetBackgroundColor();
 	RPI_TermSetBackgroundColor(COLORS_BLACK);
@@ -55,7 +55,7 @@ void RPI_LogDumpColumns(const char* source, const int* buffer, unsigned length, 
 	printf("[%s]: Dumping %u bytes at 0x%0X:\n", source, length, buffer);
 
 	while(length-- > 0) {
-		printf("%02X ", *buffer++);
+		printf("%02X ", (uint8_t)*buffer++);
 		if(columns != 0 && length % columns == 0) printf("\n");
 	}
 

@@ -43,6 +43,8 @@ void RPI_TermSetBackgroundColor(int color);
 int RPI_TermGetBackgroundColor();
 
 int RPI_TermPutC(char glyph);
+void RPI_TermPutS(char* string);
+void RPI_TermPutHex(unsigned int hex);
 
 void RPI_TermPrintAt(int x, int y, const char* string, ...);
 void RPI_TermPrintDyed(int textColor, int backgroundColor, const char* string, ...);

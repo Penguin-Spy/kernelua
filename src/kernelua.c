@@ -20,6 +20,7 @@
 #include "uspi.h"
 
 #include "rpi-sd.h"
+#include "rpi-log.h"
 
 #define SCREEN_WIDTH 1920
 #define SCREEN_HEIGHT 1080
@@ -29,6 +30,8 @@
 
 const char* rotor = "\xC4\\\xB3/";
 
+uint8_t buffer[512];
+
 extern void _enable_interrupts(void);
 
 void spinRotor(int i) {
@@ -37,8 +40,6 @@ void spinRotor(int i) {
 	RPI_TermSetCursorPos(239, 0);
 	RPI_TermPutC(rotor[i]);
 	RPI_TermSetCursorPos(x, y);
-
-	RPI_WaitMiliSeconds(250);
 }
 
 void keyPressed(const char* string) {
@@ -57,6 +58,20 @@ void shutdown() {
 
 static void keyPressedRaw(unsigned char ucModifiers, const unsigned char RawKeys[6]) {
 	printf("%X, %X, %X, %X, %X, %X\n", RawKeys[0], RawKeys[1], RawKeys[2], RawKeys[3], RawKeys[4], RawKeys[5]);
+}
+
+int sd_print_basic(const char* fmt, ...) {
+	va_list vl;
+	va_start(vl, fmt);
+    RPI_Log("sd", LOG_NOTICE, fmt, vl);
+    return 0;
+}
+
+int sd_print_error(const char* fmt, ...) {
+	va_list vl;
+	va_start(vl, fmt);
+    RPI_Log("sde", LOG_ERROR, fmt, vl);
+    return 0;
 }
 
 /** Main function - we'll never return from here */
@@ -267,7 +282,43 @@ void kernel_main(unsigned int r0, unsigned int r1, unsigned int atags) {
 
 	RPI_MemoryEnableMMU();
 
-	int result = USPiInitialize();
+	printf("testing term putS and putHex:\n");
+	RPI_TermPutS("test string!\n");
+	RPI_TermPutHex(0x9abcdef0);
+	RPI_TermPutS(" <- epic hex. now a number:\n");
+	RPI_TermPutHex(1337);
+	RPI_TermPutS(" that concludes our test.");
+	printf("\nactually this does\n");
+
+	int result;
+
+	RPI_WaitSeconds(5);
+
+	RPI_TermSetTextColor(COLORS_WHITE);
+	printf("\ninitializing sd card\n");
+
+	result = sdInitCard(&sd_print_basic, &sd_print_error, false);
+
+	if(result == SD_OK) {
+		RPI_TermSetTextColor(COLORS_LIME);
+		printf("success! reading block 1\n");
+		result = sdTransferBlocks(0, 1, buffer, false);
+		if(result == SD_OK) {
+			printf("success! dumping data:\n");
+            RPI_LogDumpColumns("sd", buffer, 512, 16);
+		} else {
+			RPI_TermSetTextColor(COLORS_ORANGE);
+			printf("error read: %i\n", result);
+		}
+	} else {
+		RPI_TermSetTextColor(COLORS_ORANGE);
+		printf("error init: %i\n", result);
+	}
+	RPI_WaitSeconds(5);
+
+	printf("\n");
+
+	result = USPiInitialize();
 
 	if(result == 0) {
 		RPI_TermSetTextColor(COLORS_ORANGE);
@@ -277,6 +328,7 @@ void kernel_main(unsigned int r0, unsigned int r1, unsigned int atags) {
 
 	printf("USPiInitialize() result: %.d\n", result);
 
+
 	RPI_TermSetTextColor(COLORS_WHITE);
 	if(USPiKeyboardAvailable()) {
 		printf("Keyboard detected!\n");
@@ -285,21 +337,27 @@ void kernel_main(unsigned int r0, unsigned int r1, unsigned int atags) {
 		USPiKeyboardRegisterShutdownHandler(shutdown);
 
 		int input = getchar();
+		int i = 0;
 		while(input != '\n') {
 			if(input != EOF) {
 				RPI_TermPutC((char)input);
 			}
+			USPiKeyboardUpdateLEDs();
+
+			spinRotor(i);
+			i = ++i <= 3 ? i : 0;
 
 			input = getchar();
 		}
 		printf("end: %i, %i", input, errno);
 
-		int i = 0;
+		//int i = 0;
 		while(1) {
 			for(i = 0; i <= 3; i++) {
 				USPiKeyboardUpdateLEDs();
 
 				spinRotor(i);
+				RPI_WaitMiliseconds(250);
 			}
 		}
 	} /*else if(USPiMassStorageDeviceAvailable()) {
