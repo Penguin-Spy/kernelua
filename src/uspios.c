@@ -111,5 +111,5 @@ void uspi_assertion_failed(const char* pExpr, const char* pFile, unsigned nLine)
 // display hex dump (pSource can be 0)
 void DebugHexdump(const int* pBuffer, unsigned nBufLen, const char* pSource /* = 0 */) {
   if(pSource == 0) pSource = "?";
-  RPI_LogDump(pSource, pBuffer, nBufLen);
+  RPI_LogDump(pSource, (uint8_t*)pBuffer, nBufLen);
 }

@@ -19,7 +19,7 @@
 
 #include "uspi.h"
 
-#include "rpi-sd.h"
+#include "fs.h"
 #include "rpi-log.h"
 
 #define SCREEN_WIDTH 1920
@@ -30,7 +30,6 @@
 
 const char* rotor = "\xC4\\\xB3/";
 
-uint8_t buffer[512];
 
 extern void _enable_interrupts(void);
 
@@ -58,20 +57,6 @@ void shutdown() {
 
 static void keyPressedRaw(unsigned char ucModifiers, const unsigned char RawKeys[6]) {
 	printf("%X, %X, %X, %X, %X, %X\n", RawKeys[0], RawKeys[1], RawKeys[2], RawKeys[3], RawKeys[4], RawKeys[5]);
-}
-
-int sd_print_basic(const char* fmt, ...) {
-	va_list vl;
-	va_start(vl, fmt);
-    RPI_Log("sd", LOG_NOTICE, fmt, vl);
-    return 0;
-}
-
-int sd_print_error(const char* fmt, ...) {
-	va_list vl;
-	va_start(vl, fmt);
-    RPI_Log("sde", LOG_ERROR, fmt, vl);
-    return 0;
 }
 
 /** Main function - we'll never return from here */
@@ -297,24 +282,15 @@ void kernel_main(unsigned int r0, unsigned int r1, unsigned int atags) {
 	RPI_TermSetTextColor(COLORS_WHITE);
 	printf("\ninitializing sd card\n");
 
-	result = sdInitCard(&sd_print_basic, &sd_print_error, false);
+	result = fs_init();
 
-	if(result == SD_OK) {
-		RPI_TermSetTextColor(COLORS_LIME);
-		printf("success! reading block 1\n");
-		result = sdTransferBlocks(0, 1, buffer, false);
-		if(result == SD_OK) {
-			printf("success! dumping data:\n");
-            RPI_LogDumpColumns("sd", buffer, 512, 16);
-		} else {
-			RPI_TermSetTextColor(COLORS_ORANGE);
-			printf("error read: %i\n", result);
-		}
+	if(result == 0) {
+        printf("fs init success!       \n");
 	} else {
 		RPI_TermSetTextColor(COLORS_ORANGE);
-		printf("error init: %i\n", result);
+		printf("error init: %i         \n", result);
 	}
-	RPI_WaitSeconds(5);
+	//RPI_WaitSeconds(5);
 
 	printf("\n");
 
