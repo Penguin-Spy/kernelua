@@ -276,8 +276,35 @@ void kernel_main(unsigned int r0, unsigned int r1, unsigned int atags) {
 	printf("\nactually this does\n");
 
 	int result;
+	result = USPiInitialize();
 
-	RPI_WaitSeconds(5);
+	if(result == 0) { // indicates failure
+		RPI_TermSetTextColor(COLORS_ORANGE);
+	    printf("USPiInitialize() result: %.d\n", result);
+        goto shutdown;
+	} else {
+		RPI_TermSetTextColor(COLORS_LIME);
+	    printf("USPiInitialize() result: %.d\n", result);
+
+	    RPI_TermSetTextColor(COLORS_WHITE);
+	    if(USPiKeyboardAvailable()) {
+		    printf("Keyboard detected!\n");
+		    //USPiKeyboardRegisterKeyStatusHandlerRaw(keyPressedRaw);
+		    USPiKeyboardRegisterKeyPressedHandler(keyPressed);
+		    USPiKeyboardRegisterShutdownHandler(shutdown);
+	    } else {
+		    RPI_TermSetTextColor(COLORS_ORANGE);
+		    RPI_TermPrintAt(100, 0, "No keyboard or mass storage detected!");
+		    RPI_TermSetCursorPos(100, 1);
+		    printf("Plug in a device. RPi rebooting in ");
+            goto shutdown;
+	    }
+	}
+
+    int input = 0;
+    do {
+        input = getchar();
+    } while (input != '\n');
 
 	RPI_TermSetTextColor(COLORS_WHITE);
 	printf("\ninitializing sd card\n");
@@ -290,79 +317,35 @@ void kernel_main(unsigned int r0, unsigned int r1, unsigned int atags) {
 		RPI_TermSetTextColor(COLORS_ORANGE);
 		printf("error init: %i         \n", result);
 	}
-	//RPI_WaitSeconds(5);
 
-	printf("\n");
+	printf("    \n");
 
-	result = USPiInitialize();
+	input = getchar();
+	int i = 0;
+	while(input != '\n') {
+		if(input != EOF) {
+			RPI_TermPutC((char)input);
+		}
+		USPiKeyboardUpdateLEDs();
 
-	if(result == 0) {
-		RPI_TermSetTextColor(COLORS_ORANGE);
-	} else {
-		RPI_TermSetTextColor(COLORS_LIME);
+		spinRotor(i);
+		i = ++i <= 3 ? i : 0;
+
+		input = getchar();
 	}
+	printf("end: %i, %i", input, errno);
 
-	printf("USPiInitialize() result: %.d\n", result);
-
-
-	RPI_TermSetTextColor(COLORS_WHITE);
-	if(USPiKeyboardAvailable()) {
-		printf("Keyboard detected!\n");
-		//USPiKeyboardRegisterKeyStatusHandlerRaw(keyPressedRaw);
-		USPiKeyboardRegisterKeyPressedHandler(keyPressed);
-		USPiKeyboardRegisterShutdownHandler(shutdown);
-
-		int input = getchar();
-		int i = 0;
-		while(input != '\n') {
-			if(input != EOF) {
-				RPI_TermPutC((char)input);
-			}
+	//int i = 0;
+	while(1) {
+		for(i = 0; i <= 3; i++) {
 			USPiKeyboardUpdateLEDs();
 
 			spinRotor(i);
-			i = ++i <= 3 ? i : 0;
-
-			input = getchar();
+			RPI_WaitMiliseconds(250);
 		}
-		printf("end: %i, %i", input, errno);
-
-		//int i = 0;
-		while(1) {
-			for(i = 0; i <= 3; i++) {
-				USPiKeyboardUpdateLEDs();
-
-				spinRotor(i);
-				RPI_WaitMiliseconds(250);
-			}
-		}
-	} /*else if(USPiMassStorageDeviceAvailable()) {
-	  unsigned int size = USPiMassStorageDeviceGetCapacity(0);
-
-	  if(size > 0) {
-		printf("Capacity of device 0: %i bytes\n", size * USPI_BLOCK_SIZE);
-
-		// literally just read the data into the framebuffer because attempting to allocate an int buffer of 512 bytes broke something somewhere & the RPi just started halting while initalizing.
-		int result = USPiMassStorageDeviceRead(0, fb, 1, 0);
-		if(result == USPI_BLOCK_SIZE) {
-		  DebugHexdump(fb, USPI_BLOCK_SIZE, "storage");
-		} else {
-		  RPI_TermSetTextColor(COLORS_RED);
-		  printf("Read result: %i\n", result);
-		}
-	  } else {
-		RPI_TermSetTextColor(COLORS_RED);
-		printf("Error: reading storage device 0's capacity failed\n");
-	  }
-	  printf("RPi rebooting in ");
-
-	}*/ else {
-		RPI_TermSetTextColor(COLORS_ORANGE);
-		RPI_TermPrintAt(100, 0, "No keyboard or mass storage detected!");
-		RPI_TermSetCursorPos(100, 1);
-		printf("Plug in a device. RPi rebooting in ");
 	}
 
+shutdown:
 	for(int i = 10; i > 0; i--) {
 		printf("%d ", i);
 		RPI_WaitSeconds(1);
