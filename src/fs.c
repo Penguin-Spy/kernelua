@@ -44,7 +44,7 @@ int fs_init() {
     }
 
     RPI_TermSetTextColor(COLORS_LIME);
-    printf("success! reading MBR\n");
+    printf("success! reading MBR: ");
     uint8_t buffer[512];
     result = sdTransferBlocks(0, 1, buffer, false);
 
@@ -52,8 +52,7 @@ int fs_init() {
         RPI_TermPrintDyed(COLORS_ORANGE, COLORS_BLACK, "error reading MBR: %i\n", result);
         return result;
     }
-    printf("success! dumping data:\n");
-    RPI_LogDumpColumns("sd", buffer, 512, 16);
+    printf("success!\n");
 
     // confirm MBR magic bytes
     if(buffer[0x1FE] != 0x55 || buffer[0x1FF] != 0xAA) {

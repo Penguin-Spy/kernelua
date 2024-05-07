@@ -19,7 +19,7 @@ typedef struct {
     char name[8];               // 0x00-07
     char ext[3];                // 0x08-0A
     uint8_t attr;               // 0x0B
-    uint8_t reserved1;          // 0x0C
+    uint8_t lowercase;          // 0x0C    used to mark case: if bit 4 is set, the extension is all lowercase, if bit 3 the name is all lowercase
     uint8_t created_ms;         // 0x0D
     uint16_t created_time;      // 0x0E-0F
     uint16_t created_date;      // 0x10-11
