@@ -1,71 +1,60 @@
 SRCDIR   = src
 BUILDDIR = build
-OBJDIR   = $(BUILDDIR)/obj
-BINDIR   = $(BUILDDIR)/bin
 FONTDIR = font
 
-OBJFILES = $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.obj,$(wildcard $(SRCDIR)/*.c)) $(patsubst $(SRCDIR)/%.S,$(OBJDIR)/%.obj,$(wildcard $(SRCDIR)/*.S))
+OBJFILES = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.obj,$(wildcard $(SRCDIR)/*.c)) $(patsubst $(SRCDIR)/%.S,$(BUILDDIR)/%.obj,$(wildcard $(SRCDIR)/*.S))
 LIBFILES = $(wildcard $(SRCDIR)/*.a)
 
-# Cross-platform directory stuff
-ifeq ($(OS),Windows_NT)
-RM         = del /q /f $(NOSTDOUT) $(NOSTDERR)
-RMDIR      = if exist "$1" rmdir /s /q "$1"
-MKDIR      = if not exist "$1" mkdir "$1"
-else
-RM         = rm -f
-RMDIR      = rm -rf $1
-MKDIR      = mkdir -p $1
-endif
-ENSUREDIR  = $(call MKDIR,$(dir $@))
+ENSUREDIR  = mkdir -p $(dir $@)
 
 # set for your model (check the tutorial i followed's cmake system to figure out this)
 # yea this sucks, ill fix later™
 C_DEFINES = -DIOBPLUS=1 -DRPI3=1
 
 TOOLCHAIN = compiler/gcc-arm-none-eabi-10-2020-q4-major/bin/arm-none-eabi
-C_INCLUDES = -I$(SRCDIR)/inc -I$(SRCDIR) -I$(FONTDIR)
 ARCH = -mfpu=crypto-neon-fp-armv8 -mfloat-abi=hard -march=armv8-a+crc -mtune=cortex-a53
 C_FLAGS   = $(ARCH) -O4 -nostartfiles
-ASM_FLAGS = $(ARCH)
 
 # end of stuff that needs to be set per-model
 
+CFLAGS := -I$(SRCDIR)/inc -I$(SRCDIR) -I$(FONTDIR) $(C_DEFINES) $(C_FLAGS)
+CC := $(TOOLCHAIN)-gcc
 
-all: $(BINDIR)/kernel.img
+all: kernel.img
 
 # Generate font header file
 $(FONTDIR)/font.h: $(FONTDIR)/klscii.png
-	@echo [Font]:    $^ -^> $@
+	@echo "[Font]:    $^ → $@"
 	@$(ENSUREDIR)
 	@py font/generate_font.py $^ $@
 
 # Build C object
-$(OBJDIR)/%.obj: $(SRCDIR)/%.c
-	@echo [C obj]:   $^ -^> $@
+$(BUILDDIR)/%.obj: $(SRCDIR)/%.c
+	@echo "[C obj]:   $^ → $@"
 	@$(ENSUREDIR)
-	@$(TOOLCHAIN)-gcc $(C_INCLUDES) $(C_DEFINES) $(C_FLAGS) -o $@ -c $^
+	@$(CC) $(CFLAGS) -c $^ -o $@
 
 # Build ASM object
-$(OBJDIR)/%.obj: $(SRCDIR)/%.S
-	@echo [ASM obj]: $^ -^> $@
+$(BUILDDIR)/%.obj: $(SRCDIR)/%.S
+	@echo "[ASM obj]: $^ → $@"
 	@$(ENSUREDIR)
-	@$(TOOLCHAIN)-gcc $(C_INCLUDES) $(C_DEFINES) $(ASM_FLAGS) -o $@ -c $^
+	@$(CC) $(CFLAGS) -c $^ -o $@
 
 # Link ELF executable
-$(BINDIR)/kernel.elf: $(FONTDIR)/font.h $(OBJFILES) $(LIBFILES)
-	@echo [Link]:   $^ -^> $@
+$(BUILDDIR)/kernel.elf: $(FONTDIR)/font.h $(OBJFILES) $(LIBFILES)
+	@echo "[Link]:   $^ → $@"
 	@$(ENSUREDIR)
-	@$(TOOLCHAIN)-gcc $(C_INCLUDES) $(C_DEFINES) $(C_FLAGS) $^ -o $(BINDIR)/kernel.elf
+	@$(CC) $(CFLAGS) $^ -o $@
 #	@$(TOOLCHAIN)-objdump --source-comment=# bin/kernel.elf > kernel.disasm
 
 # Extract the kernel image
-$(BINDIR)/kernel.img: $(BINDIR)/kernel.elf
-	@echo [Extract]: $^ -^> $@
+kernel.img: $(BUILDDIR)/kernel.elf
+	@echo "[Extract]: $^ → $@"
 	@$(ENSUREDIR)
-	@$(TOOLCHAIN)-objcopy $(BINDIR)/kernel.elf -O binary $(BINDIR)/kernel.img
-	@echo Done! Output is in $@
+	@$(TOOLCHAIN)-objcopy $^ -O binary $@
+	@echo "Done! Output is in $@"
 
 .PHONY: clean
 clean:
-	@$(call RMDIR,$(BUILDDIR))
+	@rm -f kernel.img
+	@rm -rf $(BUILDDIR)

@@ -115,7 +115,7 @@ fs_fat* fs_fat_init(uint32_t partition_start_LS, uint32_t partition_size_LS) {
     }
     RPI_TermSetCursorPos(0, 0);
 
-    directory_entry* entry = fs_fat_find_directory_item(self, "subdir/hello.txt", self->root_dir_start_C);
+    directory_entry* entry = fs_fat_find_directory_item(self, "longer_subdir/two/Longer-Name-Too.toml", self->root_dir_start_C);
     if(entry == NULL) {
         printf("finding file failed\n");
         return self;
@@ -145,7 +145,7 @@ fs_fat* fs_fat_init(uint32_t partition_start_LS, uint32_t partition_size_LS) {
 #define FS_FAT_LFN_LOWERNAME        1 << 3
 #define FS_FAT_LFN_LOWEREXTENSION   1 << 4
 
-static uint8_t lfn_buffer[(255 * 2) + 1]; // 255 USC-2 characters, plus a final null termninating character (just in case)
+static uint8_t lfn_buffer[255 * 2]; // 255 USC-2 characters
 
 static void print_usc2(char* string, int length) {
     for(int i = 0; i < length; i++) {
@@ -185,7 +185,7 @@ directory_entry* fs_fat_find_directory_item(fs_fat* self, char* remaining_path, 
         return NULL;
     }
 
-    uint8_t* lfn_buffer_pos = lfn_buffer;
+    uint8_t* lfn_buffer_pos = lfn_buffer + sizeof(lfn_buffer);
     bool lfn_complete = false; // set to true once the entry with sequence number 0x01 has been read
 
     for(int entry = 0; entry < ONE_CLUSTER_BUFFER; entry += 32) {
@@ -205,25 +205,24 @@ directory_entry* fs_fat_find_directory_item(fs_fat* self, char* remaining_path, 
         if(file->attr == FS_FAT_LFN_ATTRIBUTES) {
             if(file->name[0] & FS_FAT_LFN_FIRSTENTRY) {
                 printf("_start ");
-                lfn_buffer_pos = lfn_buffer; // reset pointer to start of buffer
+                lfn_buffer_pos = lfn_buffer + sizeof(lfn_buffer); // reset pointer to end of buffer (entries are listed in reverse order)
                 memset(lfn_buffer, 0, sizeof(lfn_buffer));
                 lfn_complete = false;
             }
             printf("_LFN ");
+            // seek backwards 26 bytes for 13 characters
+            lfn_buffer_pos -= 26;
             // copy LFN characters into the buffer (copy all of the entry, even if some of the characters are unused (0xFFFF))
             memcpy(lfn_buffer_pos, &file->name[1], 10); // 10 bytes, 5 USC-2 characters
-            lfn_buffer_pos += 10;
-            memcpy(lfn_buffer_pos, &file->created_time, 12); // 12 bytes, 6 USC-2 characters
-            lfn_buffer_pos += 12;
-            memcpy(lfn_buffer_pos, &file->size, 4); // 4 bytes, 2 USC-2 characters
-            lfn_buffer_pos += 4;
-            print_usc2(lfn_buffer_pos - 26, 13);
+            memcpy(lfn_buffer_pos + 10, &file->created_time, 12); // 12 bytes, 6 USC-2 characters
+            memcpy(lfn_buffer_pos + 22, &file->size, 4); // 4 bytes, 2 USC-2 characters
+            print_usc2(lfn_buffer_pos, 13);
             RPI_TermPutC('\n');
             // if the sequence number (excluding the first entry bit) is one, the long file name has been completely read
             if((file->name[0] & ~((uint8_t)FS_FAT_LFN_FIRSTENTRY)) == 0x01) {
                 lfn_complete = true;
                 printf("_lfn complete: ");
-                print_usc2(lfn_buffer, 255);
+                print_usc2(lfn_buffer_pos, (sizeof(lfn_buffer) - ((lfn_buffer_pos - lfn_buffer))) / 2);
                 RPI_TermPutC('\n');
                 // TODO: save the FAT filename checksum
             }
@@ -244,7 +243,7 @@ directory_entry* fs_fat_find_directory_item(fs_fat* self, char* remaining_path, 
             // compare path token to long file name
             for(int i = 0; i < 255; i++) {
                 bool end_of_token = token[i] == '\0';
-                bool end_of_lfn = lfn_buffer[i*2] == '\0' && lfn_buffer[i*2 + 1] == '\0';
+                bool end_of_lfn = lfn_buffer_pos[i*2] == '\0' && lfn_buffer_pos[i*2 + 1] == '\0';
                 if(end_of_token && end_of_lfn) { // we got to the end of both at the same time, they're equal
                     names_equal = true;
                     printf("_token lfn equal\n");
@@ -254,12 +253,12 @@ directory_entry* fs_fat_find_directory_item(fs_fat* self, char* remaining_path, 
                     break;
                 }
 
-                if(lfn_buffer[i*2] > 0x7F || lfn_buffer[i*2 + 1] != 0) { // if the current LFN character isn't ASCII, it can't match the path
+                if(lfn_buffer_pos[i*2] > 0x7F || lfn_buffer_pos[i*2 + 1] != 0) { // if the current LFN character isn't ASCII, it can't match the path
                     printf("_lfn not ascii\n");
                     break;
                 }
 
-                char current_lfn_char = lfn_buffer[i*2];// convert lowercase to uppercase
+                char current_lfn_char = lfn_buffer_pos[i*2];// convert lowercase to uppercase
                 if(current_lfn_char >= 'a' && current_lfn_char <= 'z') {
                     current_lfn_char -= 0x20;
                 }

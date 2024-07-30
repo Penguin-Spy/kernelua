@@ -1,5 +1,6 @@
 #build output shouldn't be tracked by git
 build
+kernel.img
 
 # vs code compiler/define config
 # disabled until different RPi models are handled
