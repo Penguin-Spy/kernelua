@@ -17,10 +17,14 @@
 #include "rpi-interrupts.h"
 #include "rpi-interrupts-controller.h"
 
+#include "rpi-aux.h"
 #include "rpi-term.h"
 #include "rpi-log.h"
 
-extern void outbyte(char b);
+void outbyte(char b) {
+    RPI_AuxMiniUartWrite(b);
+    RPI_TermPutC(b);
+}
 
 volatile int uptime = 0;
 

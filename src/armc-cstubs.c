@@ -32,15 +32,18 @@ extern int errno;
 /* Required include for times() */
 #include <sys/times.h>
 
-/* Prototype for the Term write function */
-#include "rpi-term.h"
+// for EOF
+#include <stdio.h>
 
+#include "rpi-term.h"
 #include "rpi-aux.h"
 #include "rpi-log.h"
 #include "rpi-input.h"
-#include <stdio.h>
 
-void outbyte(char c);
+#include "fs.h"
+
+// shift file handles up 3 to make space for stdin, stdout, stderr (0, 1, 2 respectively)
+#define FILE_HANDLE_START 3
 
 static const char fromCStubs[] = "cstubs";
 
@@ -50,7 +53,7 @@ char* __env[1] = { 0 };
 char** environ = __env;
 
 /* A helper function written in assembler to aid us in allocating memory */
-extern caddr_t _get_stack_pointer(void);
+//extern caddr_t _get_stack_pointer(void);
 
 
 /* Never return from _exit as there's no OS to exit to, so instead we trap
@@ -63,13 +66,9 @@ void _exit(int status) {
 	}
 }
 
-
-/* There's currently no implementation of a file system because there's no
-   file system! */
 int _close(int file) {
 	RPI_Log(fromCStubs, LOG_WARNING, "_close(%i)", file);
-
-	return -1;
+    return fs_close(file - FILE_HANDLE_START);
 }
 
 
@@ -97,10 +96,18 @@ int fork(void) {
    in these examples, all files are regarded as character special devices. The
    sys/stat.h header file required is distributed in the include subdirectory
    for this C library. */
-int _fstat(int file, struct stat* st) {
-	RPI_Log(fromCStubs, LOG_WARNING, "_fstat(%i, %X)", file, st);
+int _fstat(int file, struct stat* stat) {
+	RPI_Log(fromCStubs, LOG_WARNING, "_fstat(%i, %X)", file, stat);
 
-	st->st_mode = S_IFCHR;
+    if(file < FILE_HANDLE_START) {
+	    stat->st_mode = S_IFCHR;
+    } else if(!fs_is_valid_file(file - FILE_HANDLE_START)) {
+        errno = EBADF;
+        return -1;
+    } else {
+        stat->st_mode = S_IFREG;
+        stat->st_size = 3;
+    }
 	return 0;
 }
 
@@ -115,13 +122,20 @@ int _getpid(void) {
 }
 
 
-/* Query whether output stream is a terminal. For consistency with the other
-   minimal implementations, which only support output to stdout, this minimal
-   implementation is suggested: */
+/** Query whether output stream is a terminal.
+ * @returns `1` if the file is a terminal, or `0` and sets errno to `ENOTTY` or `EBADF`.
+ */
 int _isatty(int file) {
 	RPI_Log(fromCStubs, LOG_WARNING, "_isatty(%i)", file);
 
-	return 1;
+    if(file < FILE_HANDLE_START) {
+        return 1;
+    } else if(fs_is_valid_file(file - FILE_HANDLE_START)) {
+        errno = ENOTTY;
+    } else {
+        errno = EBADF;
+    }
+    return 0;
 }
 
 
@@ -143,19 +157,29 @@ int link(char* old, char* new) {
 }
 
 
-/* Set position in a file. Minimal implementation: */
-int _lseek(int file, int ptr, int dir) {
-	RPI_Log(fromCStubs, LOG_WARNING, "_lseek(%i, %i, %i)", file, ptr, dir);
+/** Set position in a file.
+ * @returns the resulting offset location in bytes, or `-1` on error and sets `errno`.
+ */
+int _lseek(int file, int offset, int whence) {
+	RPI_Log(fromCStubs, LOG_WARNING, "_lseek(%i, %i, %i)", file, offset, whence);
 
-	return 0; // implies the file is empty (∴, i assume this should return the current offset into the file?)
+    if(file < FILE_HANDLE_START) {
+        errno = EBADF;
+        return -1;
+    } else {
+        return fs_seek(file - FILE_HANDLE_START, offset, whence);
+    }
 }
 
 
-/* Open a file. Minimal implementation: */
-int open(const char* name, int flags, int mode) {
-	RPI_Log(fromCStubs, LOG_WARNING, "open(%s, %i, %i)", name, flags, mode);
+/* Open a file. */
+int _open(const char* name, int flags, int mode) {
+    RPI_Log(fromCStubs, LOG_WARNING, "open(%s, %i, %i)", name, flags, mode);
 
-	return -1;
+    // returns -1 on error, which matches the "minimal implementation"'s behavior.
+    int file = fs_open(name, "", 1);
+    if(file == -1) return -1;
+    return file + FILE_HANDLE_START;
 }
 
 
@@ -166,9 +190,18 @@ int open(const char* name, int flags, int mode) {
 */
 
 int _read(int file, char* buffer, int length) {
-	//RPI_Log(fromCStubs, LOG_WARNING, "_read(%i, %X, %i)", file, buffer, length);
-
-	return RPI_InputGetChars(buffer, length);
+    if(file >= FILE_HANDLE_START) {
+        RPI_Log(fromCStubs, LOG_WARNING, "read(%i, %X, %i)", file, buffer, length);
+        int x = RPI_TermGetCursorX(), y = RPI_TermGetCursorY();
+        RPI_TermSetCursorPos(228, 2);
+        RPI_TermPutS("R           ");
+        RPI_TermSetCursorPos(230, 2);
+        RPI_TermPutHex(file);
+        RPI_TermSetCursorPos(x, y);
+        return fs_read(file - FILE_HANDLE_START, buffer, length);
+    } else {
+        return RPI_InputGetChars(buffer, length);
+    }
 }
 
 
@@ -225,29 +258,31 @@ int wait(int* status) {
 	return -1;
 }
 
+/** Write to a file.
+ * @param file the file handle. `0` for stdin, `1` for stdout, `2` for stderr.
+ * @param str the string to print
+ * @param len the number of bytes to write
+ */
+int _write(int file, char* str, int len) {
+    if(file >= FILE_HANDLE_START) {
+        int x = RPI_TermGetCursorX(), y = RPI_TermGetCursorY();
+        RPI_TermSetCursorPos(228, 1);
+        RPI_TermPutS("W           ");
+        RPI_TermSetCursorPos(230, 1);
+        RPI_TermPutHex(file);
+        RPI_TermSetCursorPos(x, y);
+    } else {
+        for(int todo = 0; todo < len; todo++) {
+            char b = *str++;
+            // UART uses '\r\n', but our Term uses '\n'. all printf calls use just '\n', so add the carriage return for UART
+            if(b == '\n') {
+                RPI_AuxMiniUartWrite('\r');
+            }
+            RPI_AuxMiniUartWrite(b);
 
-void outbyte(char b) {
-	// UART uses '\r\n', but our Term uses '\n'. all printf calls use just '\n', so add the carriage return for UART
-	if(b == '\n') {
-		RPI_AuxMiniUartWrite('\r');
-	}
-	RPI_AuxMiniUartWrite(b);
+            RPI_TermPutC(b);
+        }
+    }
 
-	RPI_TermPutC(b);
-}
-
-/* Write to a file. libc subroutines will use this system routine for output to
-   all files, including stdout—so if you need to generate any output, for
-   example to a serial port for debugging, you should make your minimal write
-   capable of doing this. The following minimal implementation is an
-   incomplete example; it relies on a outbyte subroutine (not shown; typically,
-   you must write this in assembler from examples provided by your hardware
-   manufacturer) to actually perform the output. */
-int _write(int file, char* ptr, int len) {
-	int todo;
-
-	for(todo = 0; todo < len; todo++)
-		outbyte(*ptr++);
-
-	return len;
+    return len;
 }

@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#include "fs.h"
+
 // a suffix of LS means logical sector (hardcoded as 512-bytes)
 // a suffix of C means a FAT cluster (size determined by VBR)
 typedef struct {
@@ -12,8 +14,15 @@ typedef struct {
     uint32_t data_start_LS;         // first sector of the data region, absolute offset
     uint32_t root_dir_start_C;      // first cluster of the root directory table (clusters begin in the first sector of the data region)
     uint8_t logical_sectors_per_cluster;
+    uint8_t* cluster_buffer;        // a buffer for this filesystem instance
+    int bytes_per_cluster;          // the size of the cluster buffer
 } fs_fat;
 
+typedef struct {
+    uint32_t first_cluster_id;
+    uint32_t current_loaded_cluster_id; // which cluster id is currently loaded (used to get the next one from the FAT)
+    uint32_t nth_cluster_of_file;       // which cluster of the file we currently have in the buffer (1st cluster, 23rd cluster, etc.)
+} fs_fat_file;
 
 typedef struct {
     char name[8];               // 0x00-07
@@ -32,5 +41,7 @@ typedef struct {
 } directory_entry;
 
 fs_fat* fs_fat_init(uint32_t partition_start_LS, uint32_t partition_size_LS);
+fs_file* fs_fat_open(fs_fat* self, const char* name);
+int fs_fat_read(fs_file* file, char* buffer, int length);
 
 #endif
