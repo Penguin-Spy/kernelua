@@ -134,6 +134,9 @@ int fs_open(const char* name, const char* mode, int system) {
     return file_id;
 }
 
+/** Closes an open file.
+ * @param file the file handle
+ */
 int fs_close(int file_id) {
     if(!fs_is_valid_file(file_id)) {
         errno = EBADF;
@@ -186,7 +189,7 @@ int fs_seek(int file_id, int offset, int whence) {
 }
 
 /** Reads up to `length` bytes from the file into `buffer`.
- * @returns the number of bytes read, or `-1` on error and sets `errno`.
+ * @returns the number of bytes read, `0` for end of file, or `-1` on error and sets `errno`.
  */
 int fs_read(int file_id, uint8_t* buffer, int length) {
     if(!fs_is_valid_file(file_id)) {

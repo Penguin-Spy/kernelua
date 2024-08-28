@@ -37,7 +37,7 @@ void RPI_vLog(const char* source, unsigned level, const char* message, va_list v
 	}
 	printf("[%s]: ", source);
 	vprintf(message, vl);
-	printf("\n");
+	printf("    \n");
 
 	RPI_TermSetTextColor(old_fg);
 	RPI_TermSetBackgroundColor(old_bg);

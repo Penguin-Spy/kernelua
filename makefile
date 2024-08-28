@@ -3,7 +3,7 @@ BUILDDIR = build
 FONTDIR = font
 
 OBJFILES = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.obj,$(wildcard $(SRCDIR)/*.c)) $(patsubst $(SRCDIR)/%.S,$(BUILDDIR)/%.obj,$(wildcard $(SRCDIR)/*.S))
-LIBFILES = $(wildcard $(SRCDIR)/*.a)
+LIBFILES = src/libuspi.a src/liblua.a
 
 ENSUREDIR  = mkdir -p $(dir $@)
 
@@ -13,7 +13,7 @@ C_DEFINES = -DIOBPLUS=1 -DRPI3=1
 
 TOOLCHAIN = compiler/gcc-arm-none-eabi-10-2020-q4-major/bin/arm-none-eabi
 ARCH = -mfpu=crypto-neon-fp-armv8 -mfloat-abi=hard -march=armv8-a+crc -mtune=cortex-a53
-C_FLAGS   = $(ARCH) -O4 -nostartfiles
+C_FLAGS   = $(ARCH) -O2 -nostartfiles
 
 # end of stuff that needs to be set per-model
 
@@ -44,7 +44,7 @@ $(BUILDDIR)/%.obj: $(SRCDIR)/%.S
 $(BUILDDIR)/kernel.elf: $(FONTDIR)/font.h $(OBJFILES) $(LIBFILES)
 	@echo "[Link]:   $^ → $@"
 	@$(ENSUREDIR)
-	@$(CC) $(CFLAGS) $^ -o $@
+	$(CC) $(CFLAGS) $^ -l:libm.a -o $@
 #	@$(TOOLCHAIN)-objdump --source-comment=# bin/kernel.elf > kernel.disasm
 
 # Extract the kernel image

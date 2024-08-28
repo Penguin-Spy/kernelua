@@ -220,6 +220,9 @@ int ensure_correct_cluster(fs_file* file) {
     return 0;
 }
 
+/** Reads up to `length` bytes from the file into `read_buffer`.
+ * @returns the number of bytes read, `0` for end of file, or `-1` on error and sets `errno`.
+ */
 int fs_fat_read(fs_file* file, char* read_buffer, int length) {
     // make sure we have the right cluster loaded
     if(ensure_correct_cluster(file) != 0) {
@@ -242,10 +245,11 @@ int fs_fat_read(fs_file* file, char* read_buffer, int length) {
     }
     log("size-truncated length: %i", length);
     if(length < 1) {
-        return -1;
+        return 0;   // end of file
     }
     memcpy(read_buffer, file->buffer + buffer_offset, length);
     file->offset += length;
+    log("read %i bytes, offset now at %i", length, file->offset);
     return length;
 }
 

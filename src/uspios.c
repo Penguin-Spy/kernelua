@@ -62,6 +62,7 @@ int SetPowerStateOn(unsigned nDeviceId) {
   RPI_PropertyAddTag(TAG_SET_POWER_STATE, nDeviceId, 0x03);
   RPI_PropertyProcess();
   RPI_Log(fromUSPiOS, LOG_KERNEL, "Turned on device #%u", nDeviceId);
+  return 1;
 }
 
 // "get board MAC address"

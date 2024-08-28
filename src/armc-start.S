@@ -241,13 +241,13 @@ _osc:                .word    54000000
 _value:              .word    0x63fff
 _mbox:               .word    MBOX_2711
 
-_get_stack_pointer:
-    // Return the stack pointer value
-    str     sp, [sp]
-    ldr     r0, [sp]
-
-    // Return from the function
-    mov     pc, lr
+//_get_stack_pointer:
+//    // Return the stack pointer value
+//    str     sp, [sp]
+//    ldr     r0, [sp]
+//
+//    // Return from the function
+//    mov     pc, lr
 
 _enable_interrupts:
     mrs     r0, cpsr
