@@ -28,7 +28,7 @@ extern int errno;
 
 #include "rpi-term.h"
 #include "rpi-aux.h"
-#include "rpi-log.h"
+#include "log.h"
 #include "rpi-input.h"
 
 #include "fs.h"
@@ -36,7 +36,7 @@ extern int errno;
 // shift file handles up 3 to make space for stdin, stdout, stderr (0, 1, 2 respectively)
 #define FILE_HANDLE_START 3
 
-static const char fromCStubs[] = "cstubs";
+static const char log_from[] = "cstubs";
 
 
 // --- General syscalls --- //
@@ -68,14 +68,14 @@ caddr_t _sbrk(int incr) {
 /** If exit is called, it is likely due to a Lua panic or other issue.
  * Display an error message and halt. */
 void _exit(int status) {
-    RPI_Log(fromCStubs, LOG_ERROR, "exit(%i)", status);
+    log_error("exit(%i)", status);
 
     while(1) { }
 }
 
 /** Unknown use, something to do with un-initalizing arrays when a program is exiting. */
 /*void _fini() {
-    RPI_Log(fromCStubs, LOG_ERROR, "fini()");
+    log_error("fini()");
 }*/
 
 
@@ -88,7 +88,7 @@ void _exit(int status) {
  * @returns a file handle, or `-1` on error and sets `errno`.
  */
 int _open(const char* name, int flags, int mode) {
-    RPI_Log(fromCStubs, LOG_WARNING, "open(%s, %i, %i)", name, flags, mode);
+    log_warn("open(%s, %i, %i)", name, flags, mode);
 
     int file = fs_open(name, "", 1);
     if(file == -1) return -1;
@@ -99,7 +99,7 @@ int _open(const char* name, int flags, int mode) {
  * @param file the file handle
  */
 int _close(int file) {
-    RPI_Log(fromCStubs, LOG_WARNING, "close(%i)", file);
+    log_warn("close(%i)", file);
     return fs_close(file - FILE_HANDLE_START);
 }
 
@@ -109,7 +109,7 @@ int _close(int file) {
  */
 int _read(int file, char* buffer, int length) {
     if(file >= FILE_HANDLE_START) {
-        RPI_Log(fromCStubs, LOG_WARNING, "read(%i, %X, %i)", file, buffer, length);
+        log_warn("read(%i, %X, %i)", file, buffer, length);
         int x = RPI_TermGetCursorX(), y = RPI_TermGetCursorY();
         RPI_TermSetCursorPos(228, 2);
         RPI_TermPutS("R           ");
@@ -117,7 +117,7 @@ int _read(int file, char* buffer, int length) {
         RPI_TermPutHex(file);
         RPI_TermSetCursorPos(x, y);
         int status = fs_read(file - FILE_HANDLE_START, buffer, length);
-        RPI_Log(fromCStubs, LOG_WARNING, "read: %i", status);
+        log_warn("read: %i", status);
         return status;
     } else {
         return RPI_InputGetChars(buffer, length);
@@ -159,7 +159,7 @@ int _write(int file, char* buffer, int length) {
  * @returns the resulting offset location in bytes, or `-1` on error and sets `errno`.
  */
 int _lseek(int file, int offset, int whence) {
-    RPI_Log(fromCStubs, LOG_WARNING, "lseek(%i, %i, %i)", file, offset, whence);
+    log_warn("lseek(%i, %i, %i)", file, offset, whence);
 
     if(file < FILE_HANDLE_START) {
         errno = EBADF;
@@ -173,7 +173,7 @@ int _lseek(int file, int offset, int whence) {
  * @returns `0` on success, or `-1` on error and sets `errno`.
  */
 int _fstat(int file, struct stat* stat) {
-    RPI_Log(fromCStubs, LOG_WARNING, "fstat(%i, %X)", file, stat);
+    log_warn("fstat(%i, %X)", file, stat);
 
     if(file < FILE_HANDLE_START) {
         stat->st_mode = S_IFCHR;
@@ -191,7 +191,7 @@ int _fstat(int file, struct stat* stat) {
  * @returns `1` if the file is a terminal, or `0` and sets errno to `ENOTTY` or `EBADF`.
  */
 int _isatty(int file) {
-    RPI_Log(fromCStubs, LOG_WARNING, "isatty(%i)", file);
+    log_warn("isatty(%i)", file);
 
     if(file < FILE_HANDLE_START) {
         return 1;
@@ -210,7 +210,7 @@ int _isatty(int file) {
  *
  */
 /*int _link(char* old, char* new) {
-    RPI_Log(fromCStubs, LOG_WARNING, "link(%s, %s)", old, new);
+    log_warn("link(%s, %s)", old, new);
 
     errno = EMLINK;
     return -1;
@@ -220,7 +220,7 @@ int _isatty(int file) {
  *
  */
 int _unlink(char* name) {
-    RPI_Log(fromCStubs, LOG_WARNING, "unlink(%s)", name);
+    log_warn("unlink(%s)", name);
 
     errno = ENOENT;
     return -1;
@@ -230,7 +230,7 @@ int _unlink(char* name) {
  *
  */
 /*int _stat(const char* name, struct stat* st) {
-    RPI_Log(fromCStubs, LOG_WARNING, "stat(%s, %X)", name, st);
+    log_warn("stat(%s, %X)", name, st);
 
     st->st_mode = S_IFCHR;
     return 0;
@@ -243,7 +243,7 @@ int _unlink(char* name) {
  * with other processes.
  */
 int _getpid(void) {
-    RPI_Log(fromCStubs, LOG_WARNING, "getpid()");
+    log_warn("getpid()");
 
     return 1;   // we don't have processes, so always return 1.
 }
@@ -253,7 +253,7 @@ int _getpid(void) {
  * @param signal the signal to send
  */
 int _kill(int pid, int signal) {
-    RPI_Log(fromCStubs, LOG_WARNING, "kill(%i, %i)", pid, signal);
+    log_warn("kill(%i, %i)", pid, signal);
 
     errno = EINVAL; // we don't have processes, so signals will always be invalid to send.
     return -1;
@@ -263,7 +263,7 @@ int _kill(int pid, int signal) {
  *
  */
 /*clock_t _times(struct tms* buf) {
-    RPI_Log(fromCStubs, LOG_WARNING, "times(%X)", buf);
+    log_warn("times(%X)", buf);
 
     return -1;
 }*/
@@ -271,7 +271,7 @@ int _kill(int pid, int signal) {
 // required by something in Lua. (notably not the OS library)
 int _gettimeofday (struct timeval *tp, void* tzvp) {
     struct timezone *tzp = tzvp;
-    RPI_Log(fromCStubs, LOG_WARNING, "gettimeofday(%X, %X)", tp, tzp);
+    log_warn("gettimeofday(%X, %X)", tp, tzp);
 
     return -1;
 }
@@ -279,7 +279,7 @@ int _gettimeofday (struct timeval *tp, void* tzvp) {
 /* Transfer control to a new process. Minimal implementation (for a system
    without processes): */
 /*int execve(char* name, char** argv, char** env) {
-    RPI_Log(fromCStubs, LOG_WARNING, "execve(%s, %s, %s)", name, *argv, *env);
+    log_warn("execve(%s, %s, %s)", name, *argv, *env);
 
     errno = ENOMEM;
     return -1;
@@ -288,7 +288,7 @@ int _gettimeofday (struct timeval *tp, void* tzvp) {
 /* Create a new process. Minimal implementation (for a system without
    processes): */
 /*int fork(void) {
-    RPI_Log(fromCStubs, LOG_WARNING, "fork()");
+    log_warn("fork()");
 
     errno = EAGAIN;
     return -1;
@@ -296,7 +296,7 @@ int _gettimeofday (struct timeval *tp, void* tzvp) {
 
 // Wait for a child process. Minimal implementation:
 /*int wait(int* status) {
-    RPI_Log(fromCStubs, LOG_WARNING, "wait(%i)", *status);
+    log_warn("wait(%i)", *status);
 
     errno = ECHILD;
     return -1;

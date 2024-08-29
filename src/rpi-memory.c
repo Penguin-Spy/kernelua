@@ -1,5 +1,14 @@
-// enables paging and the MMU
-
+/* rpi-memory.c © Penguin_Spy 2021-2024
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ * This Source Code Form is "Incompatible With Secondary Licenses", as
+ * defined by the Mozilla Public License, v. 2.0.
+ *
+ * The Covered Software may not be used as training or other input data
+ * for LLMs, generative AI, or other forms of machine learning or neural
+ * networks.
+ */
 
 /* flow of mmu setup:
 
@@ -35,11 +44,11 @@ now we can free() pieces of memory
 #include "rpi-memory.h"
 
 #include "rpi-mailbox-interface.h"
-#include "rpi-log.h"
+#include "log.h"
 
 extern int _etext; // end of executable section in the kernel
 
-static const char fromMMU[] = "mmu";
+static const char log_from[] = "mmu";
 
 //  Auxiliary Control register
 #if RASPPI == 1
@@ -76,8 +85,13 @@ static const char fromMMU[] = "mmu";
 
 #define TTBCR_SPLIT	0
 
+// enables paging and the MMU
 int RPI_MemoryEnableMMU() {
+    log(LOG_MMU, "Initializing MMU");
 
+  // TODO: find a better place to put the page table,
+  // right now it's just hardcoded at 2MiB into RAM
+  // which _sbrk() and thus malloc() could potentially reach
   uint32_t* pageTable = (uint32_t*)0x200000;
 
   // get memory
@@ -86,7 +100,7 @@ int RPI_MemoryEnableMMU() {
   RPI_PropertyProcess();
   rpi_mailbox_property_t* mp = RPI_PropertyGet(TAG_GET_ARM_MEMORY);
 
-  RPI_Log(fromMMU, LOG_MMU, "ARM Memory: %8.8X%8.8X", mp->data.buffer_32[0], mp->data.buffer_32[1]);
+  log(LOG_MMU, "ARM Memory base: %8.8X, size: %8.8X", mp->data.buffer_32[0], mp->data.buffer_32[1]);
 
   //base address in bytes = mp->data.buffer_32[0]
   //size in bytes         = mp->data.buffer_32[1]
@@ -109,8 +123,7 @@ int RPI_MemoryEnableMMU() {
     }
   }
 
-  RPI_Log(fromMMU, LOG_MMU, "pageTable: 0x%0X, pageTable[0]: 0x%0X, &pageTable[0]: 0x%0X", pageTable, pageTable[0], &pageTable[0]);
-  RPI_Log(fromMMU, LOG_MMU, "Page table initalized");
+  log(LOG_MMU, "Page table initialized: 0x%0X, pageTable[0]: 0x%0X", pageTable, pageTable[0]);
 
   //TODO: make this an extern asm routine in armc-start.S
 
@@ -123,7 +136,7 @@ int RPI_MemoryEnableMMU() {
 #endif
   asm volatile ("mcr p15, 0, %0, c1, c0,  1" : : "r" (nAuxControl));
 
-  RPI_Log(fromMMU, LOG_MMU, "Enabled aux control");
+  log(LOG_MMU, "Enabled aux control");
 
   uint32_t nTLBType;
   asm volatile ("mrc p15, 0, %0, c0, c0,  3" : "=r" (nTLBType));
@@ -138,7 +151,7 @@ int RPI_MemoryEnableMMU() {
   // set Domain Access Control register (Domain 0 and 1 to client)
   asm volatile ("mcr p15, 0, %0, c3, c0,  0" : : "r" (DOMAIN_CLIENT << 0));
 
-  RPI_Log(fromMMU, LOG_MMU, "Enabled TLB");
+  log(LOG_MMU, "Enabled TLB");
 
   // enable MMU
   uint32_t nControl;
@@ -154,9 +167,9 @@ int RPI_MemoryEnableMMU() {
 #endif
   nControl |= MMU_MODE;
 
-  RPI_Log(fromMMU, LOG_MMU, "Setting MMU_MODE");
+  log(LOG_MMU, "Setting MMU_MODE");
   asm volatile ("mcr p15, 0, %0, c1, c0,  0" : : "r" (nControl) : "memory");
 
-  RPI_Log(fromMMU, LOG_MMU, "MMU configured!");
+  log(LOG_MMU, "MMU configured!");
   return 0;
 }

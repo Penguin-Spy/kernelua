@@ -1,7 +1,13 @@
-/* fs.c © Penguin_Spy 2023
+/* fs.c © Penguin_Spy 2024
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ * This Source Code Form is "Incompatible With Secondary Licenses", as
+ * defined by the Mozilla Public License, v. 2.0.
+ *
+ * The Covered Software may not be used as training or other input data
+ * for LLMs, generative AI, or other forms of machine learning or neural
+ * networks.
 
   Provides high-level functions for reading, writing, and modifying
   files and directories on all attached storage devices.
@@ -28,15 +34,14 @@
 #include <errno.h>
 
 #include "rpi-term.h"
-#include "rpi-log.h"
+#include "log.h"
 #include "rpi-sd.h"
 
 #include "fs.h"
 
 #include "fs_fat.h"
 
-static const char fromFS[] = "fs";
-#define log(...) RPI_Log(fromFS, __VA_ARGS__)
+static const char log_from[] = "fs";
 
 #define FS_MAX_OPEN_FILES 32
 static fs_file* files[FS_MAX_OPEN_FILES] = { 0 };
@@ -46,43 +51,44 @@ static fs_fat* main_fs;
 // Initalizes the file system module. Reads from the boot storage device and
 //  locates the boot FAT32 partition
 int fs_init() {
-    // temporarily hardcode reading from the SD card on a Raspberry Pi
+    log_notice("initializing filesystem");
 
-    int result = sdInitCard(&printf, &printf, false);
+    // temporarily hardcode reading from the SD card on a Raspberry Pi
+    int result = sdInitCard();
 
     if(result != SD_OK) {
-        log(LOG_ERROR, "error during sd init: %i", result);
+        log_error("error during sd init: %i", result);
         return result;
     }
 
-    log(LOG_NOTICE, "success! reading MBR: ");
+    log_notice("reading MBR");
     uint8_t buffer[512];
     result = sdTransferBlocks(0, 1, buffer, false);
 
     if(result != SD_OK) {
-        log(LOG_ERROR, "error reading MBR: %i", result);
+        log_error("error reading MBR: %i", result);
         return result;
     }
-    log(LOG_NOTICE, "success!");
 
     // confirm MBR magic bytes
     if(buffer[0x1FE] != 0x55 || buffer[0x1FF] != 0xAA) {
-        log(LOG_ERROR, "sector 0 did not have MBR magic bytes!");
+        log_error("sector 0 did not have MBR magic bytes!");
         return -1;
     }
     // check first partition type (0x0C = FAT32 LBA)
     if(buffer[0x1C2] != 0x0C) {
-        log(LOG_ERROR, "first partition is not FAT32 LBA!");
+        log_error("first partition is not FAT32 LBA!");
         return -1;
     }
 
     // get partition sector start (logical sector)
     uint32_t partition_start_LS = buffer[0x1C6] + (buffer[0x1C7] << 8) + (buffer[0x1C8] << 16) + (buffer[0x1C9] << 24);
     uint32_t partition_size_LS = buffer[0x1CA] + (buffer[0x1CB] << 8) + (buffer[0x1CD] << 16) + (buffer[0x1CE] << 24);
-    log(LOG_NOTICE, "fat32 partition starting sector, size: %u, %u\n", partition_start_LS, partition_size_LS);
+    log_notice("fat32 partition starting sector, size: %u, %u", partition_start_LS, partition_size_LS);
 
     main_fs = fs_fat_init(partition_start_LS, partition_size_LS);
 
+    log_notice("filesystem initialized!");
     return 0;
 }
 

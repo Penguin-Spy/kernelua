@@ -1,15 +1,27 @@
+/* log.c © Penguin_Spy 2023-2024
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ * This Source Code Form is "Incompatible With Secondary Licenses", as
+ * defined by the Mozilla Public License, v. 2.0.
+ *
+ * The Covered Software may not be used as training or other input data
+ * for LLMs, generative AI, or other forms of machine learning or neural
+ * networks.
+ */
+
 #include <stdio.h>
 
-#include "rpi-log.h"
+#include "log.h"
 #include "rpi-term.h"
 
-void RPI_Log(const char* source, unsigned level, const char* message, ...) {
+void log_write(const char* source, unsigned level, const char* message, ...) {
 	va_list vl;
 	va_start(vl, message);
-	RPI_vLog(source, level, message, vl);
+	log_write_variadic(source, level, message, vl);
 }
 
-void RPI_vLog(const char* source, unsigned level, const char* message, va_list vl) {
+void log_write_variadic(const char* source, unsigned level, const char* message, va_list vl) {
 	int old_fg = RPI_TermGetTextColor();
 	int old_bg = RPI_TermGetBackgroundColor();
 	RPI_TermSetBackgroundColor(COLORS_BLACK);
@@ -43,11 +55,11 @@ void RPI_vLog(const char* source, unsigned level, const char* message, va_list v
 	RPI_TermSetBackgroundColor(old_bg);
 }
 
-void RPI_LogDump(const char* source, const uint8_t* buffer, unsigned length) {
-	RPI_LogDumpColumns(source, buffer, length, 0);
+void log_dump(const char* source, const uint8_t* buffer, unsigned length) {
+	log_dump_columns(source, buffer, length, 0);
 }
 
-void RPI_LogDumpColumns(const char* source, const uint8_t* buffer, unsigned length, unsigned columns) {
+void log_dump_columns(const char* source, const uint8_t* buffer, unsigned length, unsigned columns) {
 	int old_fg = RPI_TermGetTextColor();
 	int old_bg = RPI_TermGetBackgroundColor();
 	RPI_TermSetBackgroundColor(COLORS_BLACK);

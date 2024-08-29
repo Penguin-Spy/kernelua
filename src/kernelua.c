@@ -23,7 +23,7 @@
 #include "lualib.h"
 
 #include "fs.h"
-#include "rpi-log.h"
+#include "log.h"
 
 #define SCREEN_WIDTH 1920
 #define SCREEN_HEIGHT 1080
@@ -270,14 +270,6 @@ void kernel_main(unsigned int r0, unsigned int r1, unsigned int atags) {
 
     RPI_MemoryEnableMMU();
 
-    printf("testing term putS and putHex:\n");
-    RPI_TermPutS("test string!\n");
-    RPI_TermPutHex(0x9abcdef0);
-    RPI_TermPutS(" <- epic hex. now a number:\n");
-    RPI_TermPutHex(1337);
-    RPI_TermPutS(" that concludes our test.");
-    printf("\nactually this does\n");
-
     int result;
     result = USPiInitialize();
 
@@ -304,13 +296,7 @@ void kernel_main(unsigned int r0, unsigned int r1, unsigned int atags) {
         }
     }
 
-    int input = 0;
-    do {
-        input = getchar();
-    } while(input != '\n');
-
-    RPI_TermSetTextColor(COLORS_WHITE);
-    printf("\ninitializing sd card\n");
+    while(getchar() != '\n') {};
 
     result = fs_init();
 

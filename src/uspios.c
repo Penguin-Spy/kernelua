@@ -7,9 +7,9 @@
 #include "uspios.h"
 
 #include "rpi-interrupts.h"
-#include "rpi-log.h"
+#include "log.h"
 
-static const char fromUSPiOS[] = "uspios";
+static const char log_from[] = "uspios";
 
 
 // Timer
@@ -36,7 +36,7 @@ unsigned StartKernelTimer(
 }
 
 void CancelKernelTimer(unsigned hTimer) {
-  RPI_Log(fromUSPiOS, LOG_ERROR, "CancelKernelTimer(%u)", hTimer);
+  log_error("CancelKernelTimer(%u) not implemented!", hTimer);
   return;
 }
 
@@ -47,7 +47,7 @@ typedef void TInterruptHandler(void* pParam);
 
 // USPi uses USB IRQ 9
 void ConnectInterrupt(unsigned nIRQ, TInterruptHandler* pHandler, void* pParam) {
-  RPI_Log(fromUSPiOS, LOG_KERNEL, "Connecting interrupt #%u with handler 0x%0X & param 0x%0X", nIRQ, pHandler, pParam);
+  log(LOG_KERNEL, "Connecting interrupt #%u with handler 0x%0X & param 0x%0X", nIRQ, pHandler, pParam);
   ConnectIRQHandler(nIRQ, pHandler, pParam);
   return;
 }
@@ -61,7 +61,7 @@ int SetPowerStateOn(unsigned nDeviceId) {
   RPI_PropertyInit(); //                             on, wait
   RPI_PropertyAddTag(TAG_SET_POWER_STATE, nDeviceId, 0x03);
   RPI_PropertyProcess();
-  RPI_Log(fromUSPiOS, LOG_KERNEL, "Turned on device #%u", nDeviceId);
+  log(LOG_KERNEL, "Turned on device #%u", nDeviceId);
   return 1;
 }
 
@@ -82,7 +82,7 @@ int GetMACAddress(unsigned char Buffer[6]) {
   Buffer[4] = mp->data.buffer_8[4];
   Buffer[5] = mp->data.buffer_8[5];
 
-  RPI_Log(fromUSPiOS, LOG_KERNEL, "Got MAC address");
+  log(LOG_KERNEL, "Got MAC address");
 
   return 1;
 }
@@ -94,7 +94,7 @@ void LogWrite(const char* pSource,		// short name of module
   const char* pMessage, ...) {	// uses printf format options
   va_list vl;
   va_start(vl, pMessage);
-  RPI_vLog(pSource, Severity, pMessage, vl);
+  log_write_variadic(pSource, Severity, pMessage, vl);
 }
 
 //
@@ -103,7 +103,7 @@ void LogWrite(const char* pSource,		// short name of module
 
 // display "assertion failed" message and halt
 void uspi_assertion_failed(const char* pExpr, const char* pFile, unsigned nLine) {
-  RPI_Log("ASSERT_FAIL", LOG_ERROR, "<ASSERT_FAIL>: %s, in %s:%i", pExpr, pFile, nLine);
+  log_error("<ASSERT_FAIL>: %s, in %s:%i", pExpr, pFile, nLine);
 
   // oh yeah it said to halt lol
   while(1) {}
@@ -111,6 +111,6 @@ void uspi_assertion_failed(const char* pExpr, const char* pFile, unsigned nLine)
 
 // display hex dump (pSource can be 0)
 void DebugHexdump(const int* pBuffer, unsigned nBufLen, const char* pSource /* = 0 */) {
-  if(pSource == 0) pSource = "?";
-  RPI_LogDump(pSource, (uint8_t*)pBuffer, nBufLen);
+  if(pSource == 0) pSource = log_from;
+  log_dump(pSource, (uint8_t*)pBuffer, nBufLen);
 }

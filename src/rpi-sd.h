@@ -2,16 +2,6 @@
 #define SDCARD_H
 #include <time.h>										// C standard for time needed for that and struct tm
 #include <stdbool.h>							// Needed for bool and true/false
-//#include "rpi-smartstart.h"								// Provides all basic hardware access and printhandler definition and HANDLE type
-
-// from "smartstart.h":
-typedef uint32_t	HANDLE;							// Handle is an unsigned 32 bit
-/* print handler function proto type */
-/* you can make a UART or SCREEN version and direct output to that call */
-typedef int (*printhandler) (const char* fmt, ...);
-
-#include "rpi-base.h"
-#define RPi_IO_Base_Addr PERIPHERAL_BASE
 
 /*++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++}
 {																			}
@@ -169,7 +159,7 @@ struct __attribute__((__packed__, aligned(4))) CSD {
 .         !SD_OK if card initialize failed with code identifying error.
 . 21Aug17 LdB
 .--------------------------------------------------------------------------*/
-SDRESULT sdInitCard(printhandler prn_basic, printhandler prn_error, bool mount);
+SDRESULT sdInitCard();
 
 /*-[sdCardCSD]--------------------------------------------------------------}
 . Returns the pointer to the CSD structure for the current SD Card.
@@ -190,7 +180,5 @@ SDRESULT sdTransferBlocks(uint32_t startBlock, uint32_t numBlocks, uint8_t* buff
 . 21Aug17 LdB
 .--------------------------------------------------------------------------*/
 SDRESULT sdClearBlocks(uint32_t startBlock, uint32_t numBlocks);
-
-typedef char SFN_NAME[11];											// Short file name
 
 #endif // SDCARD_H

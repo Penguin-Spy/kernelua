@@ -1,7 +1,13 @@
-/* fs_fat.c © Penguin_Spy 2023
+/* fs_fat.c © Penguin_Spy 2024
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ * This Source Code Form is "Incompatible With Secondary Licenses", as
+ * defined by the Mozilla Public License, v. 2.0.
+ *
+ * The Covered Software may not be used as training or other input data
+ * for LLMs, generative AI, or other forms of machine learning or neural
+ * networks.
 
   Functions for reading from/writing to a FAT32 formatted file system.
 */
@@ -11,8 +17,7 @@
 #include <string.h>
 #include <errno.h>
 
-#include "rpi-term.h"
-#include "rpi-log.h"
+#include "log.h"
 #include "rpi-sd.h"
 
 #include "fs.h"
@@ -20,8 +25,7 @@
 
 #define BYTES_PER_SECTOR 512    // effectively hardcoded in the SD card driver
 
-static const char fromFSFAT[] = "fs_fat";
-#define log(...) RPI_Log(fromFSFAT, LOG_NOTICE, __VA_ARGS__)
+static const char log_from[] = "fs_fat";
 
 #define FS_FAT_FILEATTR_READONLY    1 << 0
 #define FS_FAT_FILEATTR_HIDDEN      1 << 1
@@ -34,7 +38,7 @@ static SDRESULT transfer_cluster(fs_fat* self, uint32_t start_cluster, uint32_t 
     // convert from FAT32 cluster to logical sector
     uint32_t start_block = self->data_start_LS + ((start_cluster - 2) * self->logical_sectors_per_cluster);
     uint32_t block_count = cluster_count * self->logical_sectors_per_cluster;
-    log("transfer cluster: %u,%u : %u,%u", start_cluster, cluster_count, start_block, block_count);
+    log_notice("transfer cluster: %u,%u : %u,%u", start_cluster, cluster_count, start_block, block_count);
     // transfer blocks
     return sdTransferBlocks(start_block, block_count, buffer, write);
 }
@@ -67,6 +71,7 @@ static directory_entry* find_directory_item(fs_fat* self, char* remaining_path, 
 
 // initalizes a FAT32 filesystem when passed the starting logical sector and sector count
 fs_fat* fs_fat_init(uint32_t partition_start_LS, uint32_t partition_size_LS) {
+    log_notice("mounting fat32 filesystem @%i, #%i", partition_start_LS, partition_size_LS);
     fs_fat* self = malloc(sizeof *self);
 
     self->partition_start_LS = partition_start_LS;
@@ -77,43 +82,43 @@ fs_fat* fs_fat_init(uint32_t partition_start_LS, uint32_t partition_size_LS) {
     // read first sector of partition
     int result = sdTransferBlocks(partition_start_LS, 1, buffer, false);
     if(result != SD_OK) {
-        RPI_Log(fromFSFAT, LOG_ERROR, "error reading VBR: %i", result);
+        log_error("error reading VBR: %i", result);
         return NULL;
     }
 
     // read FAT volume boot record
-    log("volume OEM name: %.8s", buffer + 0x3);
-    log("bytes per sector: %u",  buffer[0x00B] + (buffer[0x00C] << 8)); // we always assume this is 512. should probably error if not true
+    log_notice("volume OEM name: %.8s", buffer + 0x3);
+    log_notice("bytes per sector: %u",  buffer[0x00B] + (buffer[0x00C] << 8)); // we always assume this is 512. should probably error if not true
     if(buffer[0x00B] + (buffer[0x00C] << 8) != BYTES_PER_SECTOR) {
-        RPI_Log(fromFSFAT, LOG_ERROR, "cannot read fat32 partition! bytes per sector is not 512");
+        log_error("cannot read fat32 partition! bytes per sector is not 512");
         return NULL;
     }
 
     self->logical_sectors_per_cluster =     buffer[0x00D];
-    log("sectors per cluster: %u",          self->logical_sectors_per_cluster);
+    log_notice("sectors per cluster: %u",          self->logical_sectors_per_cluster);
     self->bytes_per_cluster = BYTES_PER_SECTOR * self->logical_sectors_per_cluster;
     uint8_t* cluster_buffer = malloc(self->bytes_per_cluster);
     if(cluster_buffer == NULL) {
-        RPI_Log(fromFSFAT, LOG_ERROR, "failed to allocate a cluster buffer of size %i", self->bytes_per_cluster);
+        log_error("failed to allocate a cluster buffer of size %i", self->bytes_per_cluster);
     }
     self->cluster_buffer = cluster_buffer;
 
     uint16_t reserved_sectors =             buffer[0x00E] + (buffer[0x00F] << 8);
-    log("reserved sectors & FAT start: %u", reserved_sectors);
+    log_notice("reserved sectors & FAT start: %u", reserved_sectors);
     uint8_t fat_count =                     buffer[0x010];
-    log("FAT count: %u",                    fat_count);
-    log("media descriptor: 0x%X",           buffer[0x015]);
-    log("total sectors: %u",                buffer[0x020] + (buffer[0x021] << 8) + (buffer[0x022] << 16) + (buffer[0x023] << 24));
+    log_notice("FAT count: %u",                    fat_count);
+    log_notice("media descriptor: 0x%X",           buffer[0x015]);
+    log_notice("total sectors: %u",                buffer[0x020] + (buffer[0x021] << 8) + (buffer[0x022] << 16) + (buffer[0x023] << 24));
     uint32_t sectors_per_fat =              buffer[0x024] + (buffer[0x025] << 8) + (buffer[0x026] << 16) + (buffer[0x027] << 24);
-    log("sectors per fat: %u",              sectors_per_fat);
-    log("version: %X.%X",                   buffer[0x02B], buffer[0x02A]);
+    log_notice("sectors per fat: %u",              sectors_per_fat);
+    log_notice("version: %X.%X",                   buffer[0x02B], buffer[0x02A]);
     self->root_dir_start_C =                buffer[0x02C] + (buffer[0x02D] << 8) + (buffer[0x02E] << 16) + (buffer[0x02F] << 24);
-    log("root dir start cluster: %u",       self->root_dir_start_C);
+    log_notice("root dir start cluster: %u",       self->root_dir_start_C);
 
     self->fat_start_LS = partition_start_LS + reserved_sectors;
     self->data_start_LS = self->fat_start_LS + (sectors_per_fat * fat_count);
-    log("fat start LS: %u", self->fat_start_LS);
-    log("data start LS: %u", self->data_start_LS);
+    log_notice("fat start LS: %u", self->fat_start_LS);
+    log_notice("data start LS: %u", self->data_start_LS);
 
     return self;
 }
@@ -147,7 +152,7 @@ fs_file* fs_fat_open(fs_fat* self, const char* name) {
     }
     fs_file* file = malloc(sizeof *file);
     if(file == NULL) {
-        RPI_Log(fromFSFAT, LOG_ERROR, "failed to allocate file: %i", errno);
+        log_error("failed to allocate file: %i", errno);
         return NULL;
     }
     file->data.fat.first_cluster_id = (entry->cluster_hi << 16) + entry->cluster_lo;
@@ -157,7 +162,7 @@ fs_file* fs_fat_open(fs_fat* self, const char* name) {
     file->offset = 0;
     file->buffer = malloc(self->bytes_per_cluster);
     if(file->buffer == NULL) {
-        RPI_Log(fromFSFAT, LOG_ERROR, "failed to allocate file buffer: %i", errno);
+        log_error("failed to allocate file buffer: %i", errno);
         free(file);
         return NULL;
     }
@@ -173,7 +178,7 @@ int ensure_correct_cluster(fs_file* file) {
         // TODO: write to the disk in the right cluster (conveniently the currently loaded one)
         // transfer_cluster(file->filesystem, file->data.fat.current_loaded_cluster_id, 1, file->buffer, true);
         // if(result != SD_OK) {
-        //     RPI_Log(fromFSFAT, LOG_ERROR, "failed to write cluster of file in ensure_correct_cluster: %i", result);
+        //     log_error("failed to write cluster of file in ensure_correct_cluster: %i", result);
         //     return -1;
         // }
     }
@@ -181,30 +186,30 @@ int ensure_correct_cluster(fs_file* file) {
 
     int nth_cluster_of_offset = file->offset / filesystem->bytes_per_cluster;
     if(file->data.fat.nth_cluster_of_file == nth_cluster_of_offset) {
-        log("in correct cluster");
+        log_notice("in correct cluster");
         return 0; // conveniently already in the right cluster :)
     }
 
     uint32_t current_cluster_id;
     if(nth_cluster_of_offset < file->data.fat.nth_cluster_of_file) {
         // have to seek backwards, aka from the beginning of the file because fat
-        log("seeking from first cluster");
+        log_notice("seeking from first cluster");
         current_cluster_id = file->data.fat.first_cluster_id;
         file->data.fat.nth_cluster_of_file = 0;
     } else {
         // have to seek forwards
-        log("seeking forwards");
+        log_notice("seeking forwards");
         current_cluster_id = file->data.fat.current_loaded_cluster_id;
     }
 
     while(file->data.fat.nth_cluster_of_file < nth_cluster_of_offset) {
         current_cluster_id = find_next_cluster(filesystem, current_cluster_id);
-        log("cluster #%i @%i", file->data.fat.nth_cluster_of_file, current_cluster_id);
+        log_notice("cluster #%i @%i", file->data.fat.nth_cluster_of_file, current_cluster_id);
         file->data.fat.nth_cluster_of_file += 1;
         if(current_cluster_id == 0) break;
     }
     if(file->data.fat.nth_cluster_of_file != nth_cluster_of_offset) { // if we failed to get to the right cluster, um, end of file probably?
-        log("couldn't find cluster");
+        log_notice("couldn't find cluster");
         return -1;
     }
 
@@ -212,11 +217,11 @@ int ensure_correct_cluster(fs_file* file) {
     int result = transfer_cluster(filesystem, current_cluster_id, 1, file->buffer, false);
     //int result = SD_OK;
     if(result != SD_OK) {
-        RPI_Log(fromFSFAT, LOG_ERROR, "failed to read cluster of file in ensure_correct_cluster: %i", result);
+        log_error("failed to read cluster of file in ensure_correct_cluster: %i", result);
         return -1;
     }
     file->data.fat.current_loaded_cluster_id = current_cluster_id;
-    log("read new cluster");
+    log_notice("read new cluster");
     return 0;
 }
 
@@ -227,29 +232,29 @@ int fs_fat_read(fs_file* file, char* read_buffer, int length) {
     // make sure we have the right cluster loaded
     if(ensure_correct_cluster(file) != 0) {
         errno = EIO;
-        log("failed to ensure correct cluster");
+        log_notice("failed to ensure correct cluster");
         return -1;
     }
 
     int buffer_offset = file->offset - (file->data.fat.nth_cluster_of_file * file->filesystem->bytes_per_cluster);
 
-    log("buffer offset: %i", buffer_offset);
+    log_notice("buffer offset: %i", buffer_offset);
     if(buffer_offset + length > file->filesystem->bytes_per_cluster) {
         // would read past the end of the buffer
         length = file->filesystem->bytes_per_cluster - buffer_offset;   // can never be 0, because then ensure_correct_cluster would've loaded the next cluster
     }
-    log("buffer-truncated length: %i", length);
+    log_notice("buffer-truncated length: %i", length);
     if(file->offset + length > file->size) {
         // would read past the end of the file
         length = file->size - file->offset;         // shouldn't be negative, because then ensure_correct_cluster would've returned -1
     }
-    log("size-truncated length: %i", length);
+    log_notice("size-truncated length: %i", length);
     if(length < 1) {
         return 0;   // end of file
     }
     memcpy(read_buffer, file->buffer + buffer_offset, length);
     file->offset += length;
-    log("read %i bytes, offset now at %i", length, file->offset);
+    log_notice("read %i bytes, offset now at %i", length, file->offset);
     return length;
 }
 
@@ -283,7 +288,7 @@ static directory_entry* find_directory_item(fs_fat* self, char* remaining_path, 
         }
     }
 
-    log("token: %s, rempath: %s", token, remaining_path);
+    log_notice("token: %s, rempath: %s", token, remaining_path);
 
     // if the pointers still point to the same location, the seperator wasn't found (we're at the end of the path)
     // or if remaining_path is empty (the last char was a '/')
@@ -291,7 +296,7 @@ static directory_entry* find_directory_item(fs_fat* self, char* remaining_path, 
 
     int result = transfer_cluster(self, current_cluster, 1, buffer, false);
     if(result != SD_OK) {
-        log("sd read fail: %u", result);
+        log_notice("sd read fail: %u", result);
         errno = EIO;
         return NULL;
     }
@@ -301,17 +306,17 @@ static directory_entry* find_directory_item(fs_fat* self, char* remaining_path, 
 
     for(int entry = 0; entry < self->bytes_per_cluster; entry += 32) {
         if(buffer[entry] == 0x00) {
-            log("(end of directory list)");
+            log_notice("(end of directory list)");
             errno = ENOENT;
             return NULL;
         } else if(buffer[entry] == 0xE5) { // skip deleted entries
-            log("(skipping deleted file)");
+            log_notice("(skipping deleted file)");
             lfn_complete = false;
             continue;
         }
 
         directory_entry* file = (directory_entry*)&buffer[entry];
-        log("  %.8s.%.3s %X @%u, %u bytes", file->name, file->ext, file->attr, (file->cluster_hi << 16) + file->cluster_lo, file->size);
+        log_notice("  %.8s.%.3s %X @%u, %u bytes", file->name, file->ext, file->attr, (file->cluster_hi << 16) + file->cluster_lo, file->size);
 
         // this file entry is a long file name entry
         if(file->attr == FS_FAT_LFN_ATTRIBUTES) {
@@ -351,15 +356,15 @@ static directory_entry* find_directory_item(fs_fat* self, char* remaining_path, 
                 bool end_of_lfn = lfn_buffer_pos[i*2] == '\0' && lfn_buffer_pos[i*2 + 1] == '\0';
                 if(end_of_token && end_of_lfn) { // we got to the end of both at the same time, they're equal
                     names_equal = true;
-                    log("token lfn equal");
+                    log_notice("token lfn equal");
                     break;
                 } else if(end_of_token || end_of_lfn) { // only one ended, they're not equal
-                    log("token or lfn shorter");
+                    log_notice("token or lfn shorter");
                     break;
                 }
 
                 if(lfn_buffer_pos[i*2] > 0x7F || lfn_buffer_pos[i*2 + 1] != 0) { // if the current LFN character isn't ASCII, it can't match the path
-                    log("lfn not ascii");
+                    log_notice("lfn not ascii");
                     break;
                 }
 
@@ -368,7 +373,7 @@ static directory_entry* find_directory_item(fs_fat* self, char* remaining_path, 
                     current_lfn_char -= 0x20;
                 }
                 if(token[i] != current_lfn_char) {
-                    log("token and lfn not equal: %c %c", token[i], current_lfn_char);
+                    log_notice("token and lfn not equal: %c %c", token[i], current_lfn_char);
                     break;
                 }
             }
@@ -408,11 +413,11 @@ static directory_entry* find_directory_item(fs_fat* self, char* remaining_path, 
                 *ext_end = '\0'; // max 13th element of eight_three_name array
             }
 
-            log("8.3 name: %.13s", eight_three_name);
+            log_notice("8.3 name: %.13s", eight_three_name);
 
             names_equal = (strncmp(token, eight_three_name, 13) == 0);
 
-            log("names equal: %u", names_equal);
+            log_notice("names equal: %u", names_equal);
 
             if(!names_equal) {
                 continue;
@@ -424,16 +429,16 @@ static directory_entry* find_directory_item(fs_fat* self, char* remaining_path, 
         // if this was the last token, we found the item
         if(token_is_last) {
             // return directory entry
-            log("found entry");
+            log_notice("found entry");
             return file;
 
         } else if(entry_is_dir) {  // if it wasn't the last token but this entry is a directory
             // recursively traverse the subdirectory
-            log("travelling recursively with %s and %u", remaining_path, (file->cluster_hi << 16) + file->cluster_lo);
+            log_notice("travelling recursively with %s and %u", remaining_path, (file->cluster_hi << 16) + file->cluster_lo);
             return find_directory_item(self, remaining_path, (file->cluster_hi << 16) + file->cluster_lo);
 
         } else { // if it wasn't the last token but what we found isn't a directory, the subdir we're looking for doesn't exist (it was a file instead)
-            log("found file when needed directory");
+            log_notice("found file when needed directory");
             errno = ENOTDIR;
             return NULL;
         }

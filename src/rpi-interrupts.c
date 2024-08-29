@@ -19,7 +19,9 @@
 
 #include "rpi-aux.h"
 #include "rpi-term.h"
-#include "rpi-log.h"
+#include "log.h"
+
+static const char log_from[] = "int";
 
 void outbyte(char b) {
     RPI_AuxMiniUartWrite(b);
@@ -284,14 +286,13 @@ void __attribute__((interrupt("IRQ"))) interrupt_vector(void) {
             }
         }
     }
-    
+
 #if IRQ_DISPLAY == 1
     RPI_TermPrintAtDyed(239, IRQ_LINES, COLORS_LIGHTBLUE, COLORS_BLACK, "}");
 #endif
-    
+
 }
 
-static const char fromInt[] = "int";
 
 void ConnectIRQHandler(unsigned nIRQ, TInterruptHandler* pHandler, void* pParam) {
   static rpi_irq_controller_t* rpiIRQController = (rpi_irq_controller_t*)RPI_INTERRUPT_CONTROLLER_BASE; // using RPI_GetIrqController doesn't work
@@ -324,7 +325,7 @@ int ConnectTimerHandler(
     }
     // No empty timer lines
     if (nTimer == TIMER_LINES) {
-        RPI_Log(fromInt, LOG_ERROR, "OUT OF TIMER LINES! Timer handler 0x%0X not registered.", pHandler);
+        log_error("OUT OF TIMER LINES! Timer handler 0x%0X not registered.", pHandler);
         return 0;
     }
 

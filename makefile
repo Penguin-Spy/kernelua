@@ -44,7 +44,7 @@ $(BUILDDIR)/%.obj: $(SRCDIR)/%.S
 $(BUILDDIR)/kernel.elf: $(FONTDIR)/font.h $(OBJFILES) $(LIBFILES)
 	@echo "[Link]:   $^ → $@"
 	@$(ENSUREDIR)
-	$(CC) $(CFLAGS) $^ -l:libm.a -o $@
+	@$(CC) $(CFLAGS) $^ -l:libm.a -o $@
 #	@$(TOOLCHAIN)-objdump --source-comment=# bin/kernel.elf > kernel.disasm
 
 # Extract the kernel image
