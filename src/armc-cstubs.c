@@ -25,6 +25,9 @@ extern int errno;
 // for fstat() & times()
 #include <sys/stat.h>
 #include <sys/times.h>
+// for file open mode flags
+#include <stdio.h>
+#include <fcntl.h>
 
 #include "rpi-term.h"
 #include "rpi-aux.h"
@@ -32,6 +35,7 @@ extern int errno;
 #include "rpi-input.h"
 
 #include "fs.h"
+
 
 // shift file handles up 3 to make space for stdin, stdout, stderr (0, 1, 2 respectively)
 #define FILE_HANDLE_START 3
@@ -83,14 +87,31 @@ void _exit(int status) {
 
 /** Open a file.
  * @param name the full file path
- * @param flags unknown
- * @param mode unknown, likely relates to the "r+" "w" etc. mode string
+ * @param mode the mode the file was opened with (`r`|`w`|`a`, `+`)
+ * @param permission    unknown purpose, but appears to be related to the owner, group, other permission bits
  * @returns a file handle, or `-1` on error and sets `errno`.
  */
-int _open(const char* name, int flags, int mode) {
-    log_warn("open(%s, %i, %i)", name, flags, mode);
+int _open(const char* name, int mode, int permission) {
+    log_warn("open(%s, %i, %i)", name, mode, permission);
+    /*
+      flags contains the file opening mode:
+        O_RDONLY            if the open mode is 'r'         and no '+'  ✔
+        O_WRONLY            if the open mode is 'w' or 'a'  and no '+'  ✔
+        O_CREAT             if the open mode is 'w' or 'a'
+        O_TRUNC             if the open mode is 'w'
+        O_APPEND            if the open mode is 'a'                     ✔
+        O_RDWR              if the open mode has a '+'                  ✔
+      flags could contain if they were defined/relevant:
+        O_BINARY            if the open mode has a 'b'
+        O_TEXT              if the open mode has a 't'
+        O_CLOEXEC           if the open mode has a 'e'
+        O_EXCL              if the open mode has a 'x'
 
-    int file = fs_open(name, "", 1);
+      mode contains the requested file opening permissions if the file is created
+      newlib has previously called open() with the mode of 438, which corresponds to -rw-rw-rw (666 in octal)
+    */
+
+    int file = fs_open(name, mode, 1);
     if(file == -1) return -1;
     return file + FILE_HANDLE_START;
 }
@@ -133,13 +154,16 @@ int _read(int file, char* buffer, int length) {
  */
 int _write(int file, char* buffer, int length) {
     if(file >= FILE_HANDLE_START) {
+        log_warn("write(%i, %X, %i)", file, buffer, length);
         int x = RPI_TermGetCursorX(), y = RPI_TermGetCursorY();
         RPI_TermSetCursorPos(228, 1);
         RPI_TermPutS("W           ");
         RPI_TermSetCursorPos(230, 1);
         RPI_TermPutHex(file);
         RPI_TermSetCursorPos(x, y);
-        // TODO: fs_write
+        int status = fs_write(file - FILE_HANDLE_START, buffer, length);
+        log_warn("write: %i", status);
+        return status;
     } else {
         for(int todo = 0; todo < length; todo++) {
             char b = *buffer++;

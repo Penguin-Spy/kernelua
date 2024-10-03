@@ -27,6 +27,9 @@
 
 static const char log_from[] = "fs_fat";
 
+#define FAT32_CLUSTER_ID_MASK       0x0FFFFFFF  // top 4 bits are reserved & not part of the cluster number
+#define FAT32_END_OF_CHAIN_MARKERS  0x0FFFFFF8  // 0x0FFFFFF0 - 0x0FFFFFF7 are technically valid clusters to be part of a chain, so we include them.
+
 #define FS_FAT_FILEATTR_READONLY    1 << 0
 #define FS_FAT_FILEATTR_HIDDEN      1 << 1
 #define FS_FAT_FILEATTR_SYSTEM      1 << 2
@@ -53,19 +56,64 @@ static uint32_t find_next_cluster(fs_fat* self, uint32_t from_cluster) {
     // read that block into a buffer
     // TODO: cache this because we are likely to make multiple consecutive reads?
     uint8_t buffer[512];
-    sdTransferBlocks(self->fat_start_LS + block, 1, buffer, false);
+    int result = sdTransferBlocks(self->fat_start_LS + block, 1, buffer, false);
+    if(result != SD_OK) {
+        log_error("failed to transfer block in find_next_cluster: %i", result);
+        return 0;
+    }
 
     // get the next cluster value
-    uint32_t next_cluster = buffer[index_in_block] & 0x0FFFFFFF;    // top 4 bits are reserved & not part of the cluster number
+    uint32_t next_cluster = buffer[index_in_block] & FAT32_CLUSTER_ID_MASK;
 
     // check if it's an end-of-chain value & return 0 if so,
-    if(next_cluster < 2 || next_cluster >= 0x0FFFFFF8) {
-        // 0x0FFFFFF0 - 0x0FFFFFF7 are technically valid clusters to be part of a chain, so we include them.
+    if(next_cluster < 2 || next_cluster >= FAT32_END_OF_CHAIN_MARKERS) {
         return 0;
     }
     // or return the value
     return next_cluster;
 }
+
+// allocates the next available cluster into the chain that starts at from_cluster
+// if from_cluster is 0, allocates the first cluster from the beginning of the partition (for creating a new file)
+static uint32_t allocate_next_cluster(fs_fat* self, uint32_t from_cluster) {
+    uint8_t buffer[512];
+
+    // determine index into FAT where the next cluster value is
+    // determine which sd card block contains that value
+    uint16_t index_in_block = (from_cluster % ENTRIES_PER_FAT_SECTOR) * 4;
+    uint32_t block = from_cluster / ENTRIES_PER_FAT_SECTOR;
+
+    // read that block into a buffer
+    // TODO: cache this because we are likely to make multiple consecutive reads?
+    int result = sdTransferBlocks(self->fat_start_LS + block, 1, buffer, false);
+    if(result != SD_OK) {
+        log_error("failed to transfer block in allocate_next_cluster: %i", result);
+        return 0;
+    }
+
+    // sanity check that the entry is an end of chain marker
+    uint32_t next_cluster = buffer[index_in_block] & FAT32_CLUSTER_ID_MASK;
+    if(next_cluster < FAT32_END_OF_CHAIN_MARKERS) {
+        log_error("cannot allocate starting from a non end-of-chain marker! 0x%.8X", next_cluster);
+        return 0;
+    }
+
+    // start looping through FAT entries until a free cluster is found
+    for(index_in_block; index_in_block < 128; index_in_block += 4) {
+        if((buffer[index_in_block] & FAT32_CLUSTER_ID_MASK) == 0) {
+            // free cluster found
+        }
+    }
+    // if for loop reaches the end of the buffer, read the next block of the fat from the sd card
+    // and run the for loop again
+    // repeat until finding a free cluster (done) or the end of the fat is reached
+    // at which point we'll need to either restart from the beginning (if expanding a chain)
+    // and loop until we get back to the starting block (failed to find any open clusters)
+    // or just fail right away if not expanding a chain (since we started at the first block of the fat) (at index_in_block = 8 because skipping the first 2 entries in the fat)
+}
+
+// just 2 different functions, one for extending a chain, and one for allocating a new file
+// only the loop through the fat & loading the next fat block is the same, all the rest is different enough
 
 static directory_entry* find_directory_item(fs_fat* self, char* remaining_path, uint32_t current_cluster);
 
@@ -135,14 +183,40 @@ int fs_fat_uninit(fs_fat* self) {
 /** Opens a file on the given FAT32 filesystem
  * @param self the struct returned by `fs_fat_init()`
  * @param name the name of the file to open
+ * @param mode file opening mode, O_* defines from fcntl.h
  * @returns a `fs_file` struct on success, or `NULL` on error and sets `errno`.
  */
-fs_file* fs_fat_open(fs_fat* self, const char* name) {
+fs_file* fs_fat_open(fs_fat* self, const char* name, int mode) {
     // make a temporary copy of name so find_directory_item can modify it
     char* mutable_name = malloc(strlen(name) + 1);
     strcpy(mutable_name, name);
     directory_entry* entry = find_directory_item(self, mutable_name, self->root_dir_start_C);
     free(mutable_name);
+
+
+    /*
+        when opening in truncate mode, don't clear the file's cluster chain until the file is closed
+            but set the size to 0
+
+        when closing the file, mark all unused clusters as free (but don't wipe them, mostly unnecessary and might be slow), and the last used cluster as end-of-chain
+        when writing the last cluster of a file back to disk, clear the extra bytes (past the end of the file) to 0 (so that old file data is eventually cleaned up)
+            notably, DON'T DO THE ABOVE WHEN READING, reading should not modify the disk!
+        when allocating a new cluster for writing, don't load the data that's in it from disk to buffer,
+            but do mark it as the one loaded in the buffer, 0 out the buffer, and mark the buffer as dirty
+            thus when the file is closed (or seeked), the data is overwritten
+
+        also directory entry stuff for creating files (& updating stored size & whatnot when closing a (modified) file)
+        also reading directory lists longer than 1 cluster
+            oh and writing to them/allocating new clusters to write to a directory list
+
+        also deleting files:
+            mark directory entry as deleted
+            mark cluster chain as free
+
+        defragmentation? probably just let other OS's handle it
+    */
+
+
 
     if(entry == NULL) {
         return NULL;    // find_directory_item always sets errno
@@ -152,7 +226,7 @@ fs_file* fs_fat_open(fs_fat* self, const char* name) {
     }
     fs_file* file = malloc(sizeof *file);
     if(file == NULL) {
-        log_error("failed to allocate file: %i", errno);
+        log_error("failed to allocate file struct: %i", errno);
         return NULL;
     }
     file->data.fat.first_cluster_id = (entry->cluster_hi << 16) + entry->cluster_lo;
@@ -160,34 +234,53 @@ fs_file* fs_fat_open(fs_fat* self, const char* name) {
     file->filesystem = self;
     file->size = entry->size;
     file->offset = 0;
+    file->mode = mode;
     file->buffer = malloc(self->bytes_per_cluster);
     if(file->buffer == NULL) {
         log_error("failed to allocate file buffer: %i", errno);
         free(file);
         return NULL;
     }
+    file->buffer_is_modified = false;
     return file;
+}
+
+/** Closes an open file, saving its buffer if necessary. */
+void fs_fat_close(fs_file* file) {
+    if(file->buffer_is_modified) {
+        // write to the disk in the right cluster (conveniently the currently loaded one)
+        int result = transfer_cluster(file->filesystem, file->data.fat.current_loaded_cluster_id, 1, file->buffer, true);
+        if(result != SD_OK) {
+            log_error("failed to write cluster of file in fs_fat_close: %i", result);
+            // can't really return an error code, since closing still happens. just lose data :(
+        }
+    }
 }
 
 /** loads the correct cluster for the file's current offset
  * if the buffer is modified, saves it to the disk
- * @returns `0` on success, or `-1` on error.
+ * @param allow_allocating  true if new clusters can be allocated to the file
+ * @returns `0` on success, or `-1` on error and sets `errno`.
  */
-int ensure_correct_cluster(fs_file* file) {
-    if(file->buffer_is_modified) {
-        // TODO: write to the disk in the right cluster (conveniently the currently loaded one)
-        // transfer_cluster(file->filesystem, file->data.fat.current_loaded_cluster_id, 1, file->buffer, true);
-        // if(result != SD_OK) {
-        //     log_error("failed to write cluster of file in ensure_correct_cluster: %i", result);
-        //     return -1;
-        // }
-    }
+static int ensure_correct_cluster(fs_file* file, bool allow_allocating) {
+    int result;
     fs_fat* filesystem = file->filesystem;
 
     int nth_cluster_of_offset = file->offset / filesystem->bytes_per_cluster;
     if(file->data.fat.nth_cluster_of_file == nth_cluster_of_offset) {
         log_notice("in correct cluster");
         return 0; // conveniently already in the right cluster :)
+    }
+
+    if(file->buffer_is_modified) {
+        // write to the disk in the right cluster (conveniently the currently loaded one)
+        result = transfer_cluster(filesystem, file->data.fat.current_loaded_cluster_id, 1, file->buffer, true);
+        if(result != SD_OK) {
+            log_error("failed to write cluster of file in ensure_correct_cluster: %i", result);
+            errno = EIO;
+            return -1;
+        }
+        file->buffer_is_modified = false;
     }
 
     uint32_t current_cluster_id;
@@ -206,18 +299,33 @@ int ensure_correct_cluster(fs_file* file) {
         current_cluster_id = find_next_cluster(filesystem, current_cluster_id);
         log_notice("cluster #%i @%i", file->data.fat.nth_cluster_of_file, current_cluster_id);
         file->data.fat.nth_cluster_of_file += 1;
-        if(current_cluster_id == 0) break;
+        if(current_cluster_id == 0) break;  // reached end of chain
     }
-    if(file->data.fat.nth_cluster_of_file != nth_cluster_of_offset) { // if we failed to get to the right cluster, um, end of file probably?
-        log_notice("couldn't find cluster");
-        return -1;
+    if(file->data.fat.nth_cluster_of_file != nth_cluster_of_offset) {
+        if(!allow_allocating) { // reached end of chain without getting to the offset, file ended early
+            log_notice("couldn't find cluster");
+            errno = EIO;    // not a physical IO error, but broken filesystem data
+            return -1;
+        }
+        // allocate new clusters because we are writing
+        while(file->data.fat.nth_cluster_of_file < nth_cluster_of_offset) {
+            current_cluster_id = 0; // TODO: function to find the next free cluster after the current one (& update the chain?)
+            log_notice("allocating cluster #%i @%i", file->data.fat.nth_cluster_of_file, current_cluster_id);
+            file->data.fat.nth_cluster_of_file += 1;
+            if(current_cluster_id == 0) break;  // failed to allocate
+        }
+        if(file->data.fat.nth_cluster_of_file != nth_cluster_of_offset) {
+            log_warn("couldn't allocate necessary clusters");
+            errno = ENOSPC;
+            return -1;
+        }
     }
 
     // now we have the cluster id of the data in the file where the offset is pointing
-    int result = transfer_cluster(filesystem, current_cluster_id, 1, file->buffer, false);
-    //int result = SD_OK;
+    result = transfer_cluster(filesystem, current_cluster_id, 1, file->buffer, false);
     if(result != SD_OK) {
         log_error("failed to read cluster of file in ensure_correct_cluster: %i", result);
+        errno = EIO;
         return -1;
     }
     file->data.fat.current_loaded_cluster_id = current_cluster_id;
@@ -228,10 +336,9 @@ int ensure_correct_cluster(fs_file* file) {
 /** Reads up to `length` bytes from the file into `read_buffer`.
  * @returns the number of bytes read, `0` for end of file, or `-1` on error and sets `errno`.
  */
-int fs_fat_read(fs_file* file, char* read_buffer, int length) {
+int fs_fat_read(fs_file* file, uint8_t* read_buffer, int length) {
     // make sure we have the right cluster loaded
-    if(ensure_correct_cluster(file) != 0) {
-        errno = EIO;
+    if(ensure_correct_cluster(file, false) != 0) {
         log_notice("failed to ensure correct cluster");
         return -1;
     }
@@ -255,6 +362,39 @@ int fs_fat_read(fs_file* file, char* read_buffer, int length) {
     memcpy(read_buffer, file->buffer + buffer_offset, length);
     file->offset += length;
     log_notice("read %i bytes, offset now at %i", length, file->offset);
+    return length;
+}
+
+/** Writes `length` bytes from `buffer` into the file.
+ * @returns the number of bytes written, or `-1` on error and sets `errno`.
+ */
+int fs_fat_write(fs_file* file, uint8_t* write_buffer, int length) {
+    // make sure we have the right cluster loaded
+    // TODO: allow allocating a new cluster when necessary
+    if(ensure_correct_cluster(file, true) != 0) {
+        log_notice("failed to ensure correct cluster");
+        return -1;
+    }
+
+    int buffer_offset = file->offset - (file->data.fat.nth_cluster_of_file * file->filesystem->bytes_per_cluster);
+
+    log_notice("buffer offset: %i", buffer_offset);
+    if(buffer_offset + length > file->filesystem->bytes_per_cluster) {
+        // would write past the end of the buffer
+        length = file->filesystem->bytes_per_cluster - buffer_offset;   // can never be 0, because then ensure_correct_cluster would've loaded the next cluster
+    }
+    log_notice("buffer-truncated length: %i", length);
+
+    // have correct cluster loaded, offset into buffer, & length we can safely write
+
+
+    memcpy(file->buffer + buffer_offset, write_buffer, length);
+    file->buffer_is_modified = true;
+    file->offset += length;
+    log_notice("wrote %i bytes, offset now at %i", length, file->offset);
+
+    // TODO: allow increasing the size of the file (in bytes, not just allocating new clusters)
+
     return length;
 }
 

@@ -23,6 +23,7 @@ struct fs_file {
     int size;           // the size of the file in bytes
     uint8_t* buffer;    // a buffer to cache data while reading/before writing
     bool buffer_is_modified; // true if the buffer must be written back to the disk before loading other data
+    int mode;           // file opening mode, O_* defines from fcntl.h
     fs_fat* filesystem; // the filesystem this file resides on
     union {
         fs_fat_file fat;
@@ -30,10 +31,11 @@ struct fs_file {
 };
 
 int fs_init();
-int fs_open(const char* name, const char* mode, int system);
+int fs_open(const char* name, int mode, int system);
 int fs_close(int file_id);
 int fs_is_valid_file(int file_id);
 int fs_seek(int file_id, int offset, int whence);
 int fs_read(int file_id, uint8_t* buffer, int length);
+int fs_write(int file_id, uint8_t* buffer, int length);
 
 #endif

@@ -52,7 +52,9 @@ typedef struct {
 } directory_entry;
 
 fs_fat* fs_fat_init(uint32_t partition_start_LS, uint32_t partition_size_LS);
-fs_file* fs_fat_open(fs_fat* self, const char* name);
-int fs_fat_read(fs_file* file, char* buffer, int length);
+fs_file* fs_fat_open(fs_fat* self, const char* name, int mode);
+void fs_fat_close(fs_file* file);
+int fs_fat_read(fs_file* file, uint8_t* buffer, int length);
+int fs_fat_write(fs_file* file, uint8_t* write_buffer, int length);
 
 #endif

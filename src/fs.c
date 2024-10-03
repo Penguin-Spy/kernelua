@@ -32,6 +32,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <fcntl.h>
 
 #include "rpi-term.h"
 #include "log.h"
@@ -94,11 +95,11 @@ int fs_init() {
 
 /**
  * @param name the file name
- * @param mode C file open mode (`r`|`w`|`a`|`r+`|`w+`)
+ * @param mode file opening mode, O_* defines from fcntl.h
  * @param system set to `1` to read files from the root of the boot drive, or `0` to read files as the Lua environment
  * @returns an open file id ("handle") on success, or `-1` on error and sets `errno`.
  */
-int fs_open(const char* name, const char* mode, int system) {
+int fs_open(const char* name, int mode, int system) {
     int file_id = -1;
     for(int i = 0; i < FS_MAX_OPEN_FILES; i++) {
         if(files[i] == NULL) {
@@ -128,7 +129,7 @@ int fs_open(const char* name, const char* mode, int system) {
         filesystem = main_fs;
     }
 
-    fs_file* file = fs_fat_open(filesystem, name);
+    fs_file* file = fs_fat_open(filesystem, name, mode);
     if(file == NULL) {
         return -1;  // fs_fat_open sets errno
     }
@@ -148,6 +149,11 @@ int fs_close(int file_id) {
         errno = EBADF;
         return -1;
     }
+
+    // TODO: change which function is used depending on filesystem type
+    fs_file* file = files[file_id];
+    fs_fat_close(file);
+
     if(files[file_id]->buffer != NULL) {
         free(files[file_id]->buffer);
     }
@@ -184,7 +190,7 @@ int fs_seek(int file_id, int offset, int whence) {
         new_offset = file->size + offset;
     }
     // if whence isn't any of the above 3, new_offset remains at -1
-    // if new_offset is negative of larger than the file size, fail to seek.
+    // if new_offset is negative or larger than the file size, fail to seek.
     // TODO: allow seeking past the end of the file, which fills the additional space with \0 but only if data is written there
     if(new_offset < 0 || file->size < new_offset) {
         errno = EINVAL;
@@ -202,8 +208,37 @@ int fs_read(int file_id, uint8_t* buffer, int length) {
         errno = EBADF;
         return -1;
     }
+    fs_file* file = files[file_id];
+
+    if(file->mode & O_WRONLY) {
+        errno = EBADF;  // POSIX says reading from a write-only file returns EBADF
+        return -1;
+    }
 
     // TODO: change which function is used depending on filesystem type
-    fs_file* file = files[file_id];
     return fs_fat_read(file, buffer, length);
+}
+
+/** Writes `length` bytes from `buffer` into the file.
+ * @returns the number of bytes written, or `-1` on error and sets `errno`.
+ */
+int fs_write(int file_id, uint8_t* buffer, int length) {
+    if(!fs_is_valid_file(file_id)) {
+        errno = EBADF;
+        return -1;
+    }
+    fs_file* file = files[file_id];
+
+    // if file is in append mode, always seek to the end before writing
+    if(file->mode & O_APPEND) {
+        if(fs_seek(file_id, 0, SEEK_END) == -1) {
+            return -1;
+        }
+    } else if(file->mode & O_RDONLY) {
+        errno = EBADF;  // POSIX says writing on a read-only file returns EBADF
+        return -1;
+    }
+
+    // TODO: change which function is used depending on filesystem type
+    return fs_fat_write(file, buffer, length);
 }
