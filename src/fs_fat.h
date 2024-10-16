@@ -25,14 +25,17 @@ typedef struct {
     uint32_t data_start_LS;         // first sector of the data region, absolute offset
     uint32_t root_dir_start_C;      // first cluster of the root directory table (clusters begin in the first sector of the data region)
     uint8_t logical_sectors_per_cluster;
+    uint32_t sectors_per_fat;
     uint8_t* cluster_buffer;        // a buffer for this filesystem instance
     int bytes_per_cluster;          // the size of the cluster buffer
 } fs_fat;
 
 typedef struct {
     uint32_t first_cluster_id;
-    uint32_t current_loaded_cluster_id; // which cluster id is currently loaded (used to get the next one from the FAT)
-    uint32_t nth_cluster_of_file;       // which cluster of the file we currently have in the buffer (1st cluster, 23rd cluster, etc.)
+    uint32_t current_loaded_cluster_id;     // which cluster id is currently loaded (used to get the next one from the FAT)
+    uint32_t nth_cluster_of_file;           // which cluster of the file we currently have in the buffer (1st cluster, 23rd cluster, etc.)
+    uint32_t cluster_of_directory_entry;    // which cluster this file's directory entry is in (not necessarily the first cluster of the directory table)
+    uint32_t index_of_directory_entry;      // the index (of directory entries) into the directory entry cluster
 } fs_fat_file;
 
 typedef struct {

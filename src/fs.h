@@ -23,6 +23,7 @@ struct fs_file {
     int size;           // the size of the file in bytes
     uint8_t* buffer;    // a buffer to cache data while reading/before writing
     bool buffer_is_modified; // true if the buffer must be written back to the disk before loading other data
+    bool file_is_modified;  // true if the file has been written to at all
     int mode;           // file opening mode, O_* defines from fcntl.h
     fs_fat* filesystem; // the filesystem this file resides on
     union {
