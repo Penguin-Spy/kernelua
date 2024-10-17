@@ -32,7 +32,7 @@ struct fs_file {
 };
 
 int fs_init();
-int fs_open(const char* name, int mode, int system);
+int fs_open(const char* name, int mode, int kernel);
 int fs_close(int file_id);
 int fs_is_valid_file(int file_id);
 int fs_seek(int file_id, int offset, int whence);

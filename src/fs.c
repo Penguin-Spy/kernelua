@@ -96,10 +96,10 @@ int fs_init() {
 /**
  * @param name the file name
  * @param mode file opening mode, O_* defines from fcntl.h
- * @param system set to `1` to read files from the root of the boot drive, or `0` to read files as the Lua environment
+ * @param kernel set to `1` to read files from the root of the boot drive, or `0` to read files as the Lua environment
  * @returns an open file id ("handle") on success, or `-1` on error and sets `errno`.
  */
-int fs_open(const char* name, int mode, int system) {
+int fs_open(const char* name, int mode, int kernel) {
     int file_id = -1;
     for(int i = 0; i < FS_MAX_OPEN_FILES; i++) {
         if(files[i] == NULL) {
@@ -121,11 +121,11 @@ int fs_open(const char* name, int mode, int system) {
 
     // determine which drive to read from
     if(strncmp(name, "disk", 4) == 0) {
-        // todo: usb drives & stuff
+        // TODO: usb drives & stuff
         errno = ENXIO; // or ENODEV ?
         return -1;
     } else {
-        // todo: filter file paths based on `system` flag
+        // TODO: filter file paths based on `kernel` flag
         filesystem = main_fs;
     }
 

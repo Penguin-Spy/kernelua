@@ -16,6 +16,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+// for file open mode flags
+#include <fcntl.h>
 
 #include "log.h"
 #include "rpi-sd.h"
@@ -239,7 +241,81 @@ static uint32_t allocate_new_cluster_chain(fs_fat* self) {
     return 0;
 }
 
+/** ends the cluster chain, marking any clusters after it as free
+ * @param from_cluster  the last cluster to be part of the chain
+ * @param delete        if true, `from_cluster` is also freed, else it's marked as the end of chain
+ */
+static void truncate_cluster_chain(fs_fat* self, uint32_t from_cluster, bool delete) {
+    uint32_t buffer[ENTRIES_PER_FAT_SECTOR];
+
+    // find FAT entry for from_cluster
+    uint16_t index_in_sector = from_cluster % ENTRIES_PER_FAT_SECTOR;
+    uint32_t current_sector = from_cluster / ENTRIES_PER_FAT_SECTOR;
+
+    log_notice("truncating cluster chain starting @%i, index %i sector %i", from_cluster, index_in_sector, current_sector);
+
+    int result = sdTransferBlocks(self->fat_start_LS + current_sector, 1, (uint8_t*)buffer, false);
+    if(result != SD_OK) {
+        log_error("failed to transfer block in truncate_cluster_chain (1): %i", result);
+        return;
+    }
+
+    // read the next cluster
+    uint32_t next_cluster = buffer[index_in_sector];
+    if(next_cluster >= FAT32_END_OF_CHAIN_MARKERS) {
+        // already ends here, how convenient!
+        log_notice("already at end");
+        return;
+    }
+
+    // mark the chain as ending here
+    buffer[index_in_sector] = delete ? 0 : FAT32_END_OF_CHAIN;
+
+    // loop through the cluster chain, freeing all clusters
+    while(next_cluster >= 2 && next_cluster < FAT32_END_OF_CHAIN_MARKERS) {
+        // determine index into FAT where the next cluster value is
+        // determine which sd card block contains that value
+        index_in_sector = next_cluster % ENTRIES_PER_FAT_SECTOR;
+        uint32_t next_sector = next_cluster / ENTRIES_PER_FAT_SECTOR;
+
+        // load a new FAT sector if necessary
+        if(next_sector != current_sector) {
+            // save current changes
+            result = sdTransferBlocks(self->fat_start_LS + current_sector, 1, (uint8_t*)buffer, true);
+            if(result != SD_OK) {
+                log_error("failed to transfer block in truncate_cluster_chain (2): %i", result);
+                return;
+            }
+            // load next sector
+            result = sdTransferBlocks(self->fat_start_LS + next_sector, 1, (uint8_t*)buffer, false);
+            if(result != SD_OK) {
+                log_error("failed to transfer block in truncate_cluster_chain (3): %i", result);
+                return;
+            }
+            log_notice("loaded new sector: %i -> %i", current_sector, next_sector);
+            current_sector = next_sector;
+        }
+
+        log_notice("freeing cluster @%i, index %i sector %i", next_cluster, index_in_sector, current_sector);
+        // get the next cluster value
+        next_cluster = buffer[index_in_sector] & FAT32_CLUSTER_ID_MASK;
+        // free this cluster
+        buffer[index_in_sector] = 0;    // TODO: don't reset the upper 4 bits when allocating/freeing(?) clusters
+    }
+
+    // save final changes to the FAT
+    result = sdTransferBlocks(self->fat_start_LS + current_sector, 1, (uint8_t*)buffer, true);
+    if(result != SD_OK) {
+        log_error("failed to transfer block in truncate_cluster_chain (4): %i", result);
+        return;
+    }
+
+    log_notice("finished truncating cluster chain");
+    return;
+}
+
 static directory_entry* find_directory_item(fs_fat* self, char* remaining_path, uint32_t* current_cluster, uint32_t* entry_index);
+static int ensure_correct_cluster(fs_file* file, bool allow_allocating);
 
 // initalizes a FAT32 filesystem when passed the starting logical sector and sector count
 fs_fat* fs_fat_init(uint32_t partition_start_LS, uint32_t partition_size_LS) {
@@ -323,17 +399,17 @@ fs_file* fs_fat_open(fs_fat* self, const char* name, int mode) {
 
 
     /*
-        when opening in truncate mode, don't clear the file's cluster chain until the file is closed
-            but set the size to 0
+    ✔   when opening in truncate mode, don't clear the file's cluster chain until the file is closed
+    ✔       but set the size to 0
 
-        when closing the file, mark all unused clusters as free (but don't wipe them, mostly unnecessary and might be slow), and the last used cluster as end-of-chain
-            if number of clusters is > file size
+    ✔   when closing the file, mark all unused clusters as free (but don't wipe them, mostly unnecessary and might be slow), and the last used cluster as end-of-chain
+    n/a     if number of clusters is > file size
 
-        when writing the last cluster of a file back to disk, clear the extra bytes (past the end of the file) to 0 (so that old file data is eventually cleaned up)
+    ?   when writing the last cluster of a file back to disk, clear the extra bytes (past the end of the file) to 0 (so that old file data is eventually cleaned up)
             notably, DON'T DO THE ABOVE WHEN READING, reading should not modify the disk!
-        when allocating a new cluster for writing, don't load the data that's in it from disk to buffer,
-            but do mark it as the one loaded in the buffer, 0 out the buffer, and mark the buffer as dirty
-            thus when the file is closed (or seeked), the data is overwritten
+    ~✔  when allocating a new cluster for writing, don't load the data that's in it from disk to buffer,
+    ~       but do mark it as the one loaded in the buffer, 0 out the buffer, and mark the buffer as dirty
+    ✔       thus when the file is closed (or seeked), the data is overwritten
 
         also directory entry stuff for creating files
     ✔   & updating stored size & whatnot when closing a (modified) file
@@ -378,14 +454,23 @@ fs_file* fs_fat_open(fs_fat* self, const char* name, int mode) {
     }
     file->buffer_is_modified = false;
     file->file_is_modified = false;
+
+    if(mode & O_TRUNC) {
+        if(file->size != 0) {
+            file->file_is_modified = true;
+        }
+        file->size = 0;
+    }
+
     return file;
 }
 
 /** Closes an open file, saving its buffer if necessary. */
 void fs_fat_close(fs_file* file) {
+    fs_fat* self = file->filesystem;
     if(file->buffer_is_modified) {
         // write to the disk in the right cluster (conveniently the currently loaded one)
-        int result = transfer_cluster(file->filesystem, file->data.fat.current_loaded_cluster_id, 1, file->buffer, true);
+        int result = transfer_cluster(self, file->data.fat.current_loaded_cluster_id, 1, file->buffer, true);
         if(result != SD_OK) {
             log_error("failed to write cluster of file in fs_fat_close: %i", result);
             // can't really return an error code, since closing still happens. just lose data :(
@@ -396,15 +481,25 @@ void fs_fat_close(fs_file* file) {
     if(file->file_is_modified) {
         log_notice("file is modified, updating file size of %u, %u", file->data.fat.cluster_of_directory_entry, file->data.fat.index_of_directory_entry);
         // find this file's directory entry
-        uint8_t* buffer = file->filesystem->cluster_buffer;
-        transfer_cluster(file->filesystem, file->data.fat.cluster_of_directory_entry, 1, buffer, false);
+        uint8_t* buffer = self->cluster_buffer;
+        transfer_cluster(self, file->data.fat.cluster_of_directory_entry, 1, buffer, false);
         directory_entry* entry = (directory_entry*)&buffer[file->data.fat.index_of_directory_entry * 32]; // directory entries are 32 bytes
         // update size & write back to the disk
         log_notice("  %.8s.%.3s %X @%u, %u bytes", entry->name, entry->ext, entry->attr, (entry->cluster_hi << 16) + entry->cluster_lo, entry->size);
         log_notice("  was %i", entry->size);
         entry->size = file->size;
         log_notice("  now %i", entry->size);
-        transfer_cluster(file->filesystem, file->data.fat.cluster_of_directory_entry, 1, buffer, true);
+        transfer_cluster(self, file->data.fat.cluster_of_directory_entry, 1, buffer, true);
+
+        // free up any unused clusters after the end of the file
+        // seek to the end of the file data, then ensure the cluster chain ends there
+        file->offset = file->size;
+        if(ensure_correct_cluster(file, false) != 0) {
+            log_notice("failed to ensure correct cluster when closing file");
+            // make sure we don't end the file too early (file will be saved with extra unused clusters in it's chain)
+            return;
+        }
+        truncate_cluster_chain(self, file->data.fat.current_loaded_cluster_id, false);
     }
 }
 
@@ -753,6 +848,6 @@ static directory_entry* find_directory_item(fs_fat* self, char* remaining_path, 
         if this was the last one, return not found error
         else read the next cluster and go loop through the table again
     */
-   errno = ENOENT;
-   return NULL;
+    errno = ENOENT;
+    return NULL;
 }

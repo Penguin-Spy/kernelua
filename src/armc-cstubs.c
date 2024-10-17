@@ -87,27 +87,23 @@ void _exit(int status) {
 
 /** Open a file.
  * @param name the full file path
- * @param mode the mode the file was opened with (`r`|`w`|`a`, `+`)
+ * @param mode the mode the file was opened with (parsed from `r`|`w`|`a`, `+`)
  * @param permission    unknown purpose, but appears to be related to the owner, group, other permission bits
  * @returns a file handle, or `-1` on error and sets `errno`.
  */
 int _open(const char* name, int mode, int permission) {
-    log_warn("open(%s, %i, %i)", name, mode, permission);
+    log_warn("open(%s, %.5X, %.4o)", name, mode, permission);
     /*
-      flags contains the file opening mode:
+      mode contains the file opening mode:
         O_RDONLY            if the open mode is 'r'         and no '+'  ✔
         O_WRONLY            if the open mode is 'w' or 'a'  and no '+'  ✔
         O_CREAT             if the open mode is 'w' or 'a'
         O_TRUNC             if the open mode is 'w'
         O_APPEND            if the open mode is 'a'                     ✔
         O_RDWR              if the open mode has a '+'                  ✔
-      flags could contain if they were defined/relevant:
         O_BINARY            if the open mode has a 'b'
-        O_TEXT              if the open mode has a 't'
-        O_CLOEXEC           if the open mode has a 'e'
-        O_EXCL              if the open mode has a 'x'
 
-      mode contains the requested file opening permissions if the file is created
+      permission contains the requested file opening permissions if the file is created
       newlib has previously called open() with the mode of 438, which corresponds to -rw-rw-rw (666 in octal)
     */
 
