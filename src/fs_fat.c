@@ -51,7 +51,9 @@ static SDRESULT transfer_cluster(fs_fat* self, uint32_t start_cluster, uint32_t 
     return sdTransferBlocks(start_block, block_count, buffer, write);
 }
 
-#define ENTRIES_PER_FAT_SECTOR BYTES_PER_SECTOR / 4
+// 512 byte sector / 4 bytes per integer (aka 4 bytes per fat entry)
+#define ENTRIES_PER_FAT_SECTOR (BYTES_PER_SECTOR / 4)
+
 static uint32_t find_next_cluster(fs_fat* self, uint32_t from_cluster) {
     // determine index into FAT where the next cluster value is
     // determine which sd card block contains that value
@@ -60,7 +62,7 @@ static uint32_t find_next_cluster(fs_fat* self, uint32_t from_cluster) {
 
     // read that block into a buffer
     // TODO: cache this because we are likely to make multiple consecutive reads?
-    uint32_t buffer[ENTRIES_PER_FAT_SECTOR]; // 512 byte sector / 4 bytes per integer (aka 4 bytes per fat entry)
+    uint32_t buffer[ENTRIES_PER_FAT_SECTOR];
     int result = sdTransferBlocks(self->fat_start_LS + sector, 1, (uint8_t*)buffer, false);
     if(result != SD_OK) {
         log_error("failed to transfer block in find_next_cluster: %i", result);
@@ -80,7 +82,7 @@ static uint32_t find_next_cluster(fs_fat* self, uint32_t from_cluster) {
 
 // allocates the next available cluster into the chain that starts at from_cluster
 static uint32_t allocate_next_cluster_in_chain(fs_fat* self, uint32_t from_cluster) {
-    uint32_t buffer[ENTRIES_PER_FAT_SECTOR]; // 512 byte sector / 4 bytes per integer (aka 4 bytes per fat entry)
+    uint32_t buffer[ENTRIES_PER_FAT_SECTOR];
 
     // determine index into FAT where the next cluster value is
     // determine which sd card block contains that value
@@ -88,6 +90,8 @@ static uint32_t allocate_next_cluster_in_chain(fs_fat* self, uint32_t from_clust
     uint32_t sector = from_cluster / ENTRIES_PER_FAT_SECTOR;
     uint16_t original_index_in_sector = index_in_sector;
     uint32_t original_sector = sector;
+
+    log_notice("allocating from cluster %i (index %i) in fat sector %i", from_cluster, index_in_sector, sector);
 
     // read that sector into a buffer
     // TODO: cache this because we are likely to make multiple consecutive reads?
@@ -118,12 +122,16 @@ static uint32_t allocate_next_cluster_in_chain(fs_fat* self, uint32_t from_clust
 
         // start looping through FAT entries until a free cluster is found
         for(index_in_sector; index_in_sector < ENTRIES_PER_FAT_SECTOR; index_in_sector++) {
+            log_debug("  i %i e %.8X", index_in_sector, buffer[index_in_sector]);
             if((buffer[index_in_sector] & FAT32_CLUSTER_ID_MASK) == 0) {
                 goto found_free_cluster;
             }
         }
         index_in_sector = 0; // check the next FAT sector
     }
+
+    log_notice("didn't find available cluster after file, restarting from beginning of FAT");
+    index_in_sector = 2; // first 2 entries (0 & 1) of the FAT aren't real
 
     // if we didn't find an available cluster after the file, try looking from the start of the FAT
     for(sector = 0; sector < (from_cluster / self->logical_sectors_per_cluster); sector++) {
@@ -136,6 +144,7 @@ static uint32_t allocate_next_cluster_in_chain(fs_fat* self, uint32_t from_clust
 
         // loop through FAT entries until a free cluster is found
         for(index_in_sector; index_in_sector < ENTRIES_PER_FAT_SECTOR; index_in_sector++) {
+            log_debug("  i %i e %.8X", index_in_sector, buffer[index_in_sector]);
             if((buffer[index_in_sector] & FAT32_CLUSTER_ID_MASK) == 0) {
                 goto found_free_cluster;
             }
@@ -143,12 +152,14 @@ static uint32_t allocate_next_cluster_in_chain(fs_fat* self, uint32_t from_clust
         index_in_sector = 0; // check the next FAT sector
     }
     // failed to find any open clusters
+    log_warn("failed to find any available clusters!");
     return 0;
 
 found_free_cluster:;    // weird C syntax requirement (no declaration after label)
 
     // free cluster found, calcluate which cluster this is
     uint32_t free_cluster = (sector * ENTRIES_PER_FAT_SECTOR) + index_in_sector;
+    log_notice("found a free cluster %i at index %i in fat sector %i", free_cluster, index_in_sector, sector);
 
     // note that if some of these transfers fail, the allocated cluster will still be allocated with nothing pointing to it!
 
@@ -199,7 +210,7 @@ found_free_cluster:;    // weird C syntax requirement (no declaration after labe
 // allocates the first cluster from the beginning of the partition (for creating a new file)
 // returns 0 if no cluster could be allocated
 static uint32_t allocate_new_cluster_chain(fs_fat* self) {
-    uint32_t buffer[ENTRIES_PER_FAT_SECTOR]; // 512 byte sector / 4 bytes per integer (aka 4 bytes per fat entry)
+    uint32_t buffer[ENTRIES_PER_FAT_SECTOR];
 
     uint16_t index_in_sector = 2; // first 2 entries (0 & 1) of the FAT aren't real
     // sector is block of the FAT
@@ -432,8 +443,8 @@ static int ensure_correct_cluster(fs_file* file, bool allow_allocating) {
         file->data.fat.nth_cluster_of_file = 0;
     } else {
         // have to seek forwards
-        log_notice("seeking forwards");
         current_cluster_id = file->data.fat.current_loaded_cluster_id;
+        log_notice("seeking forwards from #%i @%i", file->data.fat.nth_cluster_of_file, current_cluster_id);
     }
     current_cluster_id_backup = current_cluster_id;
 
@@ -449,6 +460,7 @@ static int ensure_correct_cluster(fs_file* file, bool allow_allocating) {
             errno = EIO;    // not a physical IO error, but broken filesystem data
             return -1;
         }
+        log_notice("reached end of chain, allocating clusters");
         // allocate new clusters because we are writing
         current_cluster_id = current_cluster_id_backup;
         while(file->data.fat.nth_cluster_of_file < nth_cluster_of_offset) {
